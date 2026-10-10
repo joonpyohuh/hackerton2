@@ -78,7 +78,7 @@ const BEHAVIOR_FACT: Definition[] = [
   column("behavior_fact", "user_key", "비식별 사용자키", "행동 기록의 비식별 사용자키."),
   column("behavior_fact", "event_date", "행동 발생일", "날짜가 이동된 행동 발생일."),
   column("behavior_fact", "relative_signup_day", "가입일 기준 행동 발생일", "가입일 기준 행동 발생일(가입일 = 0)."),
-  column("behavior_fact", "behavior_type", "행동 유형", "표준화된 행동 유형. 값 목록은 behavior_type_code 정의를 따른다."),
+  column("behavior_fact", "behavior_type", "행동 유형", "표준화된 행동 유형. 값별 비즈니스 정의는 behavior_ 로 시작하는 행동 정의를 따른다."),
   column("behavior_fact", "event_count", "행동 발생 횟수", "해당 날짜의 행동 발생 횟수."),
 ];
 
@@ -164,25 +164,6 @@ const SHARED_COLUMNS: Definition[] = [
 ];
 
 const CODE_DEFINITIONS: Definition[] = [
-  {
-    id: "behavior_type_code",
-    kind: "dimension",
-    name: "행동 유형 코드",
-    aliases: ["behavior_type", "행동 유형", "행동 종류", "탐색 행동", "탐색 행동 유형"],
-    description: "behavior_fact.behavior_type 값 18개. HOME_VISIT 홈 화면 방문 · CATEGORY_VISIT 메인 카테고리 방문 · VOUCHER_VIEW 이용권 관련 페이지 방문 · SEARCH_OPEN 검색 메뉴 진입 · SEARCH_SUBMIT 검색어 입력 및 검색 실행 · SEARCH_CONTENT_CLICK 검색 결과 콘텐츠 클릭 · SEARCH_MORE_CLICK 검색 결과 더보기 클릭 · DETAIL_PLAY_CLICK 콘텐츠 상세 화면에서 재생 클릭 · CONTENT_PURCHASE_CLICK 개별 콘텐츠 구매 버튼 클릭 · DETAIL_ZZIM 콘텐츠 찜 클릭 · DETAIL_MORE 상세정보 더보기 클릭 · RECOMMEND_CONTENT_CLICK 상세 화면 추천 콘텐츠 클릭 · DETAIL_LIST_CLICK 상세 화면 콘텐츠 목록 클릭 · CONTINUOUS_AUTOPLAY 연속재생 발생 · NEXT_EPISODE_CLICK 다음 회차 클릭.",
-    tables: ["analytics.behavior_fact"],
-    columns: ["behavior_fact.behavior_type"],
-    joins: [],
-    rule: "behavior_type은 위 값만 사용한다. 이용권 관심 행동은 VOUCHER_VIEW를 우선 사용한다. 탐색 고객 판정은 행동 종류를 제한하지 않는다.",
-    numerator: null,
-    denominator: null,
-    grain: "행동 유형",
-    period: "가입 후 D0~D30",
-    unit: "범주",
-    missing: MISSING,
-    caveat: "CONTENT_PURCHASE_CLICK은 이용권 결제 버튼이 아니라 개별 콘텐츠 구매 행동이다. 이용권 결제는 payment_fact에서 본다.",
-    status: "ready",
-  },
   {
     id: "channel_type_code",
     kind: "dimension",
@@ -340,6 +321,50 @@ const EXTRA_METRICS: Definition[] = [
   },
 ];
 
+/**
+ * behavior_fact.behavior_type 15개 값을 비즈니스 용어로 정의한다. 값 자체는 원본 코드(대문자) 그대로 두고 aliases에 넣는다.
+ * 원본 PDF "데이터 설명 (3) 행동 유형" 기준. 구매·결제 의미는 payment_fact로 확인한다.
+ */
+type BehaviorSpec = { code: string; name: string; desc: string; caveat: string };
+
+const BEHAVIOR_SPECS: BehaviorSpec[] = [
+  { code: "HOME_VISIT", name: "홈 화면 방문", desc: "앱의 홈 화면을 방문한 행동. 콘텐츠 탐색의 출발점이다.", caveat: "단순 방문이므로 관심이나 구매 의도로 해석하지 않는다." },
+  { code: "CATEGORY_VISIT", name: "카테고리 방문", desc: "메인 카테고리 페이지를 방문한 행동.", caveat: "카테고리 종류가 데이터에 없어 어떤 카테고리인지 구분할 수 없다." },
+  { code: "VOUCHER_VIEW", name: "이용권 페이지 방문", desc: "이용권 관련 페이지를 방문한 행동. 이용권 관심 고객 정의의 기준이다.", caveat: "이용권 구매나 결제가 아니다. 이용권 관심 행동은 이 값을 우선 사용한다." },
+  { code: "SEARCH_OPEN", name: "검색 메뉴 진입", desc: "검색 메뉴를 연 행동.", caveat: "검색어를 입력했는지는 포함하지 않는다. 검색 실행은 SEARCH_SUBMIT을 본다." },
+  { code: "SEARCH_SUBMIT", name: "검색 실행", desc: "검색어를 입력하고 검색을 실행한 행동.", caveat: "검색어 내용은 데이터에 없다." },
+  { code: "SEARCH_CONTENT_CLICK", name: "검색 결과 콘텐츠 클릭", desc: "검색 결과에서 콘텐츠를 클릭한 행동.", caveat: "클릭 이후 재생이나 시청은 별도로 확인해야 한다." },
+  { code: "SEARCH_MORE_CLICK", name: "검색 결과 더보기", desc: "검색 결과에서 더보기를 클릭한 행동.", caveat: "" },
+  { code: "DETAIL_PLAY_CLICK", name: "상세 화면 재생 클릭", desc: "콘텐츠 상세 화면에서 재생을 클릭한 행동.", caveat: "재생 클릭이 실제 시청을 뜻하지는 않는다. 시청은 watch_daily_fact로 확인한다." },
+  { code: "CONTENT_PURCHASE_CLICK", name: "개별 콘텐츠 구매 클릭", desc: "개별 콘텐츠의 구매 버튼을 클릭한 행동.", caveat: "이용권 결제 버튼이 아니다. 이용권 결제는 payment_fact로 확인한다." },
+  { code: "DETAIL_ZZIM", name: "콘텐츠 찜", desc: "콘텐츠 상세 화면에서 찜을 누른 행동.", caveat: "" },
+  { code: "DETAIL_MORE", name: "상세정보 더보기", desc: "콘텐츠 상세 화면에서 상세정보 더보기를 클릭한 행동.", caveat: "" },
+  { code: "RECOMMEND_CONTENT_CLICK", name: "추천 콘텐츠 클릭", desc: "상세 화면의 추천 콘텐츠를 클릭한 행동.", caveat: "" },
+  { code: "DETAIL_LIST_CLICK", name: "상세 화면 목록 콘텐츠 클릭", desc: "상세 화면의 콘텐츠 목록에서 콘텐츠를 클릭한 행동.", caveat: "" },
+  { code: "CONTINUOUS_AUTOPLAY", name: "연속재생", desc: "콘텐츠가 자동으로 이어서 재생된 행동.", caveat: "고객이 직접 선택한 행동이 아니다." },
+  { code: "NEXT_EPISODE_CLICK", name: "다음 회차 클릭", desc: "다음 회차를 직접 클릭한 행동.", caveat: "" },
+];
+
+const BEHAVIOR_TERMS: Definition[] = BEHAVIOR_SPECS.map((spec) => ({
+  id: `behavior_${spec.code.toLowerCase()}`,
+  kind: "term",
+  name: spec.name,
+  aliases: [spec.code],
+  description: `${spec.desc} behavior_type = '${spec.code}'로 기록된다.`,
+  tables: ["analytics.behavior_fact"],
+  columns: ["behavior_fact.behavior_type", "behavior_fact.user_key", "behavior_fact.relative_signup_day"],
+  joins: [],
+  rule: `b.behavior_type = '${spec.code}'로 필터한다. 고객 수는 COUNT(DISTINCT b.user_key). 기간은 b.relative_signup_day에 적용한다.`,
+  numerator: null,
+  denominator: null,
+  grain: "고객×날짜×행동 유형",
+  period: "가입 후 D0~D30",
+  unit: "고객 집합",
+  missing: "해당 행동 기록이 없으면 제외한다.",
+  caveat: spec.caveat,
+  status: "ready",
+}));
+
 export const DICTIONARY_DEFINITIONS: Definition[] = [
   ...USER_DIM,
   ...BEHAVIOR_FACT,
@@ -349,6 +374,8 @@ export const DICTIONARY_DEFINITIONS: Definition[] = [
   ...CONTENT_DIM,
   ...CONTENT_GENRE_BRIDGE,
   ...SHARED_COLUMNS,
+  ...BEHAVIOR_TERMS,
   ...CODE_DEFINITIONS,
   ...EXTRA_METRICS,
 ];
+
