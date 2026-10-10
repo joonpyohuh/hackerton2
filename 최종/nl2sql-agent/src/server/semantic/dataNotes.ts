@@ -11,6 +11,7 @@ export const DATA_NOTES = `
 - relative_signup_day = 해당 날짜 − signup_date (일 단위). 모든 테이블에서 불일치 0건.
 - 테이블별 관측 범위가 다르다: behavior_fact 가입 후 0~30일, watch_daily_fact 0~60일, payment_fact 0~90일.
   서로 다른 테이블을 비교할 때는 같은 relative_signup_day 범위로 맞춰야 한다.
+  같은 고객의 event 날짜를 절대 날짜로 비교하는 것은 relative_signup_day로 비교하는 것과 동등하다. 예: 첫 결제일~+7일의 시청은 watch_date BETWEEN payment_date AND payment_date + 7로 판정할 수 있다.
 - export_part 컬럼은 추출 분할 번호이며 분석에 사용하지 않는다.
 
 [user_dim]
