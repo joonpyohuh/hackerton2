@@ -6,6 +6,7 @@ import type { ChatClient } from "@/server/llm/chat";
 import { loadPrompt, renderPrompt } from "@/server/llm/prompts";
 import { DATA_COVERAGE, type CoverageColumn } from "./dataNotes";
 import type { StoredDefinition } from "./definitions";
+import { matchConcept } from "./search";
 
 /**
  * Semantic Resolver — SQL 생성 전에 질문이 요구하는 지표·기간·집계 단위·필터를 판정한다.
@@ -61,7 +62,7 @@ export function checkDateRange(range: ResolverResponse["dateRange"]): { kind: "o
   if (range.end < cov.start || range.start > cov.end) {
     return {
       kind: "outside",
-      message: `요청한 ${label} 기간(${range.start}~${range.end})은 데이터 범위(${cov.start}~${cov.end}) 밖이라 계산할 수 없습니다.`,
+      message: `요청한 ${label} 기간(${range.start}~${range.end})은 데이터 범위(${cov.start}~${cov.end}) 밖이라 계산할 수 없습니다. 데이터가 있는 ${label} 기간으로 바꿔 질문하면 계산할 수 있습니다.`,
     };
   }
   if (range.start < cov.start || range.end > cov.end) {
@@ -94,9 +95,88 @@ function clarificationText(
   return clip(parts.join(" "), 1000);
 }
 
+const pad = (n: number) => String(n).padStart(2, "0");
+const ymd = (d: Date) => `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+
+/**
+ * 자주 쓰는 상대 기간을 코드로 계산한다(모델의 날짜 계산을 믿지 않는다).
+ * today는 Asia/Seoul 기준 YYYY-MM-DD.
+ */
+export function relativeRange(question: string, today: string): { label: string; start: string; end: string } | null {
+  if (!ISO_DATE.test(today)) return null;
+  const [y, m, d] = today.split("-").map(Number);
+  const t = new Date(Date.UTC(y, m - 1, d));
+  const q = question.replace(/\s+/g, "");
+  if (/(지난|저번)달/.test(q)) return { label: "지난달", start: ymd(new Date(Date.UTC(y, m - 2, 1))), end: ymd(new Date(Date.UTC(y, m - 1, 0))) };
+  if (/이번달/.test(q)) return { label: "이번 달", start: ymd(new Date(Date.UTC(y, m - 1, 1))), end: today };
+  const recent = /(최근|지난)(\d{1,3})일/.exec(q);
+  if (recent) return { label: `최근 ${recent[2]}일`, start: ymd(new Date(t.getTime() - (Number(recent[2]) - 1) * 86_400_000)), end: today };
+  if (/작년/.test(q)) return { label: "작년", start: `${y - 1}-01-01`, end: `${y - 1}-12-31` };
+  if (/올해/.test(q)) return { label: "올해", start: `${y}-01-01`, end: today };
+  return null;
+}
+
+function guessDateColumn(question: string): CoverageColumn | null {
+  if (question.includes("가입")) return "signup_date";
+  if (question.includes("결제")) return "payment_date";
+  if (question.includes("시청")) return "watch_date";
+  return null;
+}
+
+/** 상대 기간을 코드 계산값으로 덮어쓴다. 모델이 다른 날짜를 썼으면 문장 속 날짜도 함께 바꾼다. */
+function applyRelativeDates(raw: ResolverResponse, question: string, today: string | undefined): ResolverResponse {
+  const rel = today ? relativeRange(question, today) : null;
+  if (!rel) return raw;
+  const column = (raw.dateRange?.column as CoverageColumn | undefined) ?? guessDateColumn(question);
+  if (!column || !(column in DATA_COVERAGE)) return raw;
+  const old = raw.dateRange;
+  const fix = (text: string) => (old ? text.split(old.start).join(rel.start).split(old.end).join(rel.end) : text);
+  return {
+    ...raw,
+    dateRange: { column, start: rel.start, end: rel.end },
+    standaloneQuestion: fix(raw.standaloneQuestion),
+    filters: raw.filters.map(fix),
+    period: raw.period ? fix(raw.period) : raw.period,
+    unspecified: [...raw.unspecified, `상대 기간 '${rel.label}' → ${rel.start}~${rel.end} (오늘 ${today} 기준, 코드 계산)`],
+  };
+}
+
+/**
+ * 정책 A: 사용자가 쓴 지표 표현이 공식 지표의 이름·등록 별칭과 일치하면, 후보 대안이 있어도 되묻지 않고 공식 정의로 계산한다.
+ * 모델이 모호하다고 판정해도 코드가 이 규칙을 강제한다. 대안은 응답에 메모로 남긴다.
+ * 표현이 공식 정의의 이름·별칭이 아니면(예: "인기") 승격하지 않는다 — 공식 지표를 임의 해석에 끌어쓰지 않기 위해서다.
+ */
+function applyOfficialPriority(raw: ResolverResponse, byId: Map<string, StoredDefinition>): ResolverResponse {
+  // criterionExplicit와 무관하다: 사용자가 공식 정의의 이름·별칭을 그대로 썼다면 그 자체가 기준을 말한 것이다.
+  if (raw.status !== "ambiguous") return raw;
+  const metricConcepts = raw.concepts.filter((c) => c.role === "metric");
+  if (metricConcepts.length !== 1) return raw;
+  const phrase = metricConcepts[0].phrase;
+  const official = unique(metricConcepts[0].ids).filter((id) => {
+    const d = byId.get(id);
+    return d?.kind === "metric" && d.authority === "official" && d.status === "ready" && matchConcept(phrase, [d]).some((m) => m.score >= 90);
+  });
+  if (official.length !== 1) return raw;
+  const name = byId.get(official[0])!.name;
+  const others = raw.options.filter((o) => !o.metricIds.includes(official[0])).map((o) => o.label);
+  return {
+    ...raw,
+    status: "resolved",
+    metricIds: official,
+    options: [],
+    assumptions: [],
+    unspecified: [
+      ...raw.unspecified,
+      `'${raw.requestedMetric ?? metricConcepts[0].phrase}' → 공식 정의 '${name}' 적용(공식 정의 우선)${others.length ? `. 다른 기준(후보): ${others.join(", ")}` : ""}`,
+      ...raw.assumptions.map((a) => `판정 메모: ${a}`),
+    ],
+  };
+}
+
 /** LLM 제안을 Semantic Layer와 데이터 범위로 다시 판정한다. 결정론적이며 단위 테스트 대상이다. */
-export function finalizeResolution(raw: ResolverResponse, definitions: StoredDefinition[], question: string): Resolution {
+export function finalizeResolution(input: ResolverResponse, definitions: StoredDefinition[], question: string, today?: string): Resolution {
   const byId = new Map(definitions.map((d) => [d.id, d]));
+  const raw = applyOfficialPriority(applyRelativeDates(input, question, today), byId);
   const ready = (id: string) => byId.get(id)?.status === "ready";
 
   const unknownIds = raw.metricIds.filter((id) => !byId.has(id));
@@ -298,7 +378,7 @@ export function createSemanticResolver(options: {
         throw new StageError("invalid_response", `지표 판정 모델 응답 형식이 올바르지 않습니다: ${where}`, true);
       }
       return {
-        resolution: finalizeResolution(parsed.data, definitions, question),
+        resolution: finalizeResolution(parsed.data, definitions, question, today()),
         usage: {
           stage: "resolution",
           model: options.model,

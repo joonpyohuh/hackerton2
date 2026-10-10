@@ -1,5 +1,5 @@
-import { SemanticManager } from "@/components/semantic/SemanticManager";
+import { Workspace } from "@/components/workspace/Workspace";
 
 export default function SemanticPage() {
-  return <SemanticManager />;
+  return <Workspace mode="live" initialView="dictionary"/>;
 }

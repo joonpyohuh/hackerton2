@@ -3,7 +3,7 @@ import type { Pool } from "pg";
 import type { Env } from "@/server/config/env.schema";
 import { readiness } from "@/server/config/env.schema";
 import { createQueryExecutor, createReaderPool } from "@/server/db/executor";
-import { createMetadataCache } from "@/server/db/metadata";
+import { createMetadataCache, loadMetadata, schemaFingerprint } from "@/server/db/metadata";
 import { createValueHintsCache } from "@/server/db/valueHints";
 import { createSemanticResolver } from "@/server/semantic/resolver";
 import { createSemanticVerifier } from "@/server/harness/semanticVerifier";
@@ -29,6 +29,10 @@ export function pipelineConfigFromEnv(env: Env): PipelineConfig {
 }
 
 export type LiveAgent = { ok: true; deps: PipelineDeps; config: PipelineConfig } | { ok: false; missing: string[] };
+export async function currentSchemaVersion(env: Env) {
+  if (!env.DATABASE_URL_READONLY) throw new Error("읽기 전용 데이터 연결이 없습니다.");
+  return schemaFingerprint((await loadMetadata(readerPool(env.DATABASE_URL_READONLY), env.ALLOWED_SCHEMAS)).tables);
+}
 
 // 개발 서버 핫리로드에서도 커넥션 풀을 하나만 유지한다.
 const globalForDb = globalThis as unknown as { nl2sqlReaderPool?: { url: string; pool: Pool } };

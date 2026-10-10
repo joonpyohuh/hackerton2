@@ -17,9 +17,12 @@ const display = (v: ExecutionOutput["rows"][number][string]) =>
 
 export function createTemplateFormatter(): ResultFormatter {
   return {
-    async format({ execution, generation, question }) {
+    async format({ execution, generation, question, context }) {
       const labels = generation.columnLabels;
       const columns = execution.columns.map((c) => ({ key: c.name, label: labels[c.name] ?? c.name, kind: kindOf(c.dataType) }));
+      const metric = (context.definitions ?? []).filter((d) => d.kind === "metric" && generation.definition.metricIds.includes(d.id));
+      const numeric = columns.filter((c) => c.kind === "number");
+      if (metric.length === 1 && metric[0].unit === "%" && numeric.length === 1) numeric[0].kind = "percent";
       const title = generation.title.trim() || question;
 
       let answer: string;
@@ -27,7 +30,10 @@ export function createTemplateFormatter(): ResultFormatter {
         answer = `${title}: 조건에 맞는 데이터가 없습니다.`;
       } else if (execution.rowCount === 1 && columns.length === 1) {
         const c = columns[0];
-        answer = `${title}: ${display(execution.rows[0][c.key] ?? null)}`;
+        const value = execution.rows[0][c.key] ?? null;
+        // 단위는 모델이 아니라 적용한 정의에서 가져온다 (예: 비율 지표의 %).
+        const unit = (context.definitions ?? []).find((d) => d.kind === "metric" && generation.definition.metricIds.includes(d.id))?.unit;
+        answer = `${title}: ${display(value)}${unit === "%" && typeof value === "number" ? "%" : ""}`;
       } else if (execution.rowCount === 1) {
         answer = `${title}: ` + columns.map((c) => `${c.label} ${display(execution.rows[0][c.key] ?? null)}`).join(", ");
       } else {

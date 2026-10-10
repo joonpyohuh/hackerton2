@@ -4,6 +4,7 @@ import { buildLiveAgent } from "@/server/agent/live";
 import { getEnv } from "@/server/config/env";
 import { definitionSchema } from "@/server/semantic/definitions";
 import { getSemanticStore } from "@/server/semantic/store";
+import { requireUser } from "@/server/workspace/access";
 
 const error = (message: string, status: number) => NextResponse.json({ error: message }, { status });
 const config = () => {
@@ -13,6 +14,7 @@ const config = () => {
 };
 
 export async function GET(req: Request) {
+  const user = await requireUser(req); if (user instanceof Response) return user;
   try {
     const { env, store } = config();
     const question = new URL(req.url).searchParams.get("question")?.trim();
@@ -29,6 +31,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const user = await requireUser(req, "analyst"); if (user instanceof Response) return user;
   try {
     const { store } = config();
     const item = definitionSchema.parse(await req.json());
@@ -41,6 +44,7 @@ export async function POST(req: Request) {
 }
 
 export async function PUT(req: Request) {
+  const user = await requireUser(req, "analyst"); if (user instanceof Response) return user;
   try {
     const { store } = config();
     const parsed = z.object({ definition: definitionSchema, version: z.number().int().positive() }).parse(await req.json());
@@ -53,6 +57,7 @@ export async function PUT(req: Request) {
 }
 
 export async function DELETE(req: Request) {
+  const user = await requireUser(req, "analyst"); if (user instanceof Response) return user;
   try {
     const { store } = config();
     const id = new URL(req.url).searchParams.get("id") ?? "";

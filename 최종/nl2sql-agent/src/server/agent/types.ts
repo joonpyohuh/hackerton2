@@ -16,6 +16,7 @@ export type LlmUsage = {
 
 // ── Semantic Layer + 질문별 검색 ──
 export type RetrievedContext = {
+  schemaVersion?: string;
   schemaContext: string;
   semanticContext: string;
   examples: string; // 담당자 승인 사례만
@@ -140,6 +141,7 @@ export interface ResultFormatter {
 export type RuntimeKnowledgeStatus = "REJECTED" | "MODEL_VERIFIED";
 
 export type RunLog = {
+  schemaVersion?: string | null;
   requestId: string;
   question: string;
   startedAt: string;

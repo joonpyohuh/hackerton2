@@ -1,5 +1,5 @@
 import type { ContextRetriever, RetrievedContext } from "./types";
-import { renderSchemaContext, type DbMetadata } from "@/server/db/metadata";
+import { renderSchemaContext, schemaFingerprint, type DbMetadata } from "@/server/db/metadata";
 import { matchConcept, matchDefinitions, scoreText } from "@/server/semantic/search";
 import { renderDefinition, type StoredDefinition } from "@/server/semantic/definitions";
 import type { SemanticStore } from "@/server/semantic/store";
@@ -46,7 +46,7 @@ export function createBasicRetriever(options: { getMetadata: () => Promise<DbMet
         }
         const tables = tableNames.size ? meta.tables.filter((t) => tableNames.has(`${t.schema}.${t.name}`)) : meta.tables;
         const selectedIds = new Set(matches.map((m) => m.id));
-        const examples = (await options.store.approvedExamples(revision))
+        const examples = (await options.store.approvedExamples(revision, schemaFingerprint(meta.tables)))
           .map((example) => ({
             ...example,
             score: scoreText(question, example.question) +
@@ -64,6 +64,7 @@ export function createBasicRetriever(options: { getMetadata: () => Promise<DbMet
           clarificationQuestion: unavailable.length ? unavailable.map((d) => `${d.name}: ${d.missing}`).join(" ") : null,
           missingDefinitions: unavailable.map((d) => d.name),
           definitionVersion: `semantic.v${revision}`,
+          schemaVersion: schemaFingerprint(meta.tables),
           sources: tables.map((t) => `${t.schema}.${t.name}`),
           matches,
           exampleMatches: examples.map(({ requestId, question: q, score }) => ({ requestId, question: q, score })),

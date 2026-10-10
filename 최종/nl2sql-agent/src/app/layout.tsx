@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Geist_Mono } from "next/font/google";
 import localFont from "next/font/local";
 import "./globals.css";
@@ -17,21 +16,14 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "NL2SQL Agent",
-  description: "Semantic Layer 기반 검증형 NL2SQL 에이전트",
+  title: "마케팅 인텔리전스 | 우리 팀의 분석 워크스페이스",
+  description: "마케터의 질문과 분석가의 검토를 연결하는 AI 데이터 분석 워크스페이스",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="ko" className={`${pretendard.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
-        <nav aria-label="서비스 이동" className="sticky top-0 z-50 flex items-center gap-2 border-b border-neutral-800 bg-neutral-950 px-6 py-2 text-xs text-neutral-300">
-          <strong className="mr-3 tracking-widest text-white">OTT PULSE</strong>
-          <a className="rounded px-3 py-1.5 hover:bg-neutral-800 hover:text-white" href="https://hackathon-journey-dashboard.vercel.app/">대시보드</a>
-          <a className="rounded px-3 py-1.5 hover:bg-neutral-800 hover:text-white" href="https://hackathon-journey-dashboard.vercel.app/insights">지표 연관 지도</a>
-          <Link className="rounded px-3 py-1.5 hover:bg-neutral-800 hover:text-white" href="/">NL2SQL 분석</Link>
-          <Link className="rounded px-3 py-1.5 hover:bg-neutral-800 hover:text-white" href="/semantic">정의·검색 관리</Link>
-        </nav>
         {children}
       </body>
     </html>

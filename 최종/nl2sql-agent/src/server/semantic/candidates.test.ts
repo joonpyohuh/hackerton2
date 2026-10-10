@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { checkDefinitionCompliance } from "@/server/harness/definitionCheck";
 import { SEED_DEFINITIONS, definitionSchema } from "./definitions";
-import { finalizeResolution, resolverResponseSchema } from "./resolver";
+import { finalizeResolution, relativeRange, resolverResponseSchema } from "./resolver";
 import { matchConcept, matchDefinitions } from "./search";
 
 const definitions = SEED_DEFINITIONS.map((d) => ({ ...definitionSchema.parse(d), version: 1 }));
@@ -128,5 +128,90 @@ describe("후보 정의도 정의 준수 검사를 받는다", () => {
     });
     expect(r.passed).toBe(false);
     expect(r.errors.join(" ")).toContain("payment_order = 1");
+  });
+});
+
+describe("운영 실측에서 발견한 문제의 회귀 방지", () => {
+  it("상대 기간은 코드가 계산한다 — 오늘 2026-10-10이면 지난달은 2026-09 (모델이 2025-09로 써도 교정)", () => {
+    expect(relativeRange("지난달 가입한 고객", "2026-10-10")).toEqual({ label: "지난달", start: "2026-09-01", end: "2026-09-30" });
+    expect(relativeRange("최근 7일 결제", "2026-10-10")).toEqual({ label: "최근 7일", start: "2026-10-04", end: "2026-10-10" });
+    expect(relativeRange("지난 달 가입", "2026-01-15")?.start).toBe("2025-12-01");
+    const r = finalizeResolution(
+      raw({
+        metricIds: ["subscription_hold_rate_n"], criterionExplicit: true,
+        standaloneQuestion: "2025년 9월에 가입한 고객의 30일 구독 유지율",
+        dateRange: { column: "signup_date", start: "2025-09-01", end: "2025-09-30" },
+        filters: ["가입일 2025-09-01부터 2025-09-30까지"],
+      }),
+      definitions,
+      "지난달 가입한 고객의 30일 유지율을 알려줘.",
+      "2026-10-10",
+    );
+    expect(r.status).toBe("unavailable");
+    expect(r.reason).toContain("2026-09-01~2026-09-30");
+    expect(r.filters[0]).toContain("2026-09-01");
+    expect(r.clarificationQuestion).toContain("데이터가 있는 가입일 기간으로 바꿔");
+  });
+
+  it("정책 A 강제: 모델이 공식 1개 + 후보 1개를 두고 모호하다고 해도 공식 정의로 계산한다", () => {
+    const r = finalizeResolution(
+      raw({
+        status: "ambiguous",
+        requestedMetric: "유지율",
+        supportIds: ["plan_ad_tier"],
+        concepts: [
+          { phrase: "광고형 요금제", role: "dimension", ids: ["plan_ad_tier"] },
+          { phrase: "유지율", role: "metric", ids: ["watch_retention_22_28", "subscription_hold_rate_n"] },
+        ],
+        options: [
+          { label: "시청 유지율(결제 후 22~28일)", metricIds: ["watch_retention_22_28"] },
+          { label: "구독 유지율(가입 후 30일 보유)", metricIds: ["subscription_hold_rate_n"] },
+        ],
+        assumptions: ["유지율=리텐션으로 해석, 공식 정의 2종이 존재하나 기준 선택 필요"],
+      }),
+      definitions,
+      FAILING_QUESTION,
+    );
+    expect(r.status).toBe("resolved");
+    expect(r.metricIds).toEqual(["watch_retention_22_28"]);
+    expect(r.candidateIds).toEqual(["plan_ad_tier"]);
+    expect(r.unspecified.join(" ")).toContain("구독 유지율(가입 후 30일 보유)");
+  });
+
+  it("정책 A는 모델이 기준 명시(criterionExplicit)로 표시하고 해석을 '가정'으로 적어도 적용된다 (운영 재현)", () => {
+    const r = finalizeResolution(
+      raw({
+        status: "ambiguous", requestedMetric: "유지율", criterionExplicit: true, supportIds: ["plan_ad_tier"],
+        concepts: [
+          { phrase: "광고형 요금제", role: "dimension", ids: ["plan_ad_tier"] },
+          { phrase: "유지율", role: "metric", ids: ["watch_retention_22_28"] },
+        ],
+        assumptions: ["유지율을 D+22~28 시청 유지율(공식)을 의미하는 것으로 해석함"],
+      }),
+      definitions,
+      FAILING_QUESTION,
+    );
+    expect(r.status).toBe("resolved");
+    expect(r.metricIds).toEqual(["watch_retention_22_28"]);
+    expect(r.assumptions).toEqual([]);
+  });
+
+  it("공식 지표가 없으면 정책 A를 적용하지 않고 선택지를 묻는다 — '인기'", () => {
+    const r = finalizeResolution(
+      raw({
+        status: "ambiguous", requestedMetric: "인기",
+        concepts: [{ phrase: "인기", role: "metric", ids: ["payment_count", "first_payment_customer_n"] }],
+        options: [
+          { label: "첫 결제 고객 수 기준", metricIds: ["first_payment_customer_n"] },
+          { label: "결제 건수 기준", metricIds: ["payment_count"] },
+        ],
+      }),
+      definitions,
+      "가장 인기 있는 요금제는?",
+    );
+    // first_payment_customer_n은 공식 지표지만 '인기'의 정의(이름·별칭)가 아니다 — 승격하지 않고 묻는다
+    expect(r.status).toBe("ambiguous");
+    expect(r.metricIds).toEqual([]);
+    expect(r.options.map((o) => o.metricIds[0])).toEqual(["first_payment_customer_n", "payment_count"]);
   });
 });

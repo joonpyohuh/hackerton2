@@ -2,6 +2,10 @@ import { z } from "zod";
 import { NextResponse } from "next/server";
 import { getEnv } from "@/server/config/env";
 import { getSemanticStore } from "@/server/semantic/store";
+import { requireUser } from "@/server/workspace/access";
+import { currentSchemaVersion } from "@/server/agent/live";
+import { workspaceStore } from "@/server/workspace/store";
+import { workspaceError } from "@/server/workspace/access";
 
 function access() {
   const env = getEnv();
@@ -9,7 +13,8 @@ function access() {
   return { store: getSemanticStore(env.DATABASE_URL_APP) };
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const user = await requireUser(req, "analyst"); if (user instanceof Response) return user;
   const auth = access();
   if (auth.error) return auth.error;
   try {
@@ -20,13 +25,15 @@ export async function GET() {
 }
 
 export async function PATCH(req: Request) {
+  const user = await requireUser(req, "analyst"); if (user instanceof Response) return user;
   const auth = access();
   if (auth.error) return auth.error;
   try {
     const { requestId, approved } = z.object({ requestId: z.uuid(), approved: z.boolean() }).parse(await req.json());
-    const changed = await auth.store!.approve(requestId, approved);
-    return changed ? NextResponse.json({ requestId, approved }) : NextResponse.json({ error: "승인할 수 있는 통과 기록이 없습니다. 현재 정의 버전에서 통과했고 후보(비공식) 정의를 쓰지 않은 실행만 승인할 수 있습니다." }, { status: 404 });
-  } catch {
-    return NextResponse.json({ error: "승인 상태를 변경하지 못했습니다." }, { status: 400 });
+    if (!approved) return NextResponse.json({ error: "검토 요청 화면에서 검토 의견과 함께 상태를 변경해 주세요." }, { status: 409 });
+    await workspaceStore().review(user, requestId, { status: "approved", message: "분석가가 원본 SQL과 공식 지표를 검토하고 사례 등록을 승인했습니다.", proposedSql: null }, await currentSchemaVersion(getEnv()));
+    return NextResponse.json({ requestId, approved });
+  } catch (e) {
+    return workspaceError(e);
   }
 }

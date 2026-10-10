@@ -1,4 +1,5 @@
 import type { Pool } from "pg";
+import { createHash } from "node:crypto";
 import { InMemoryCatalog, type SchemaCatalog } from "@/server/harness/structural/catalog";
 
 /** DB에서 추출한 구조 메타데이터. 의미(지표 정의)는 담지 않는다. */
@@ -10,6 +11,9 @@ export type TableMeta = {
   constraints: string[]; // PRIMARY KEY (...), FOREIGN KEY (...) REFERENCES ...
 };
 export type DbMetadata = { tables: TableMeta[]; catalog: SchemaCatalog; loadedAt: number };
+export function schemaFingerprint(tables: TableMeta[]) {
+  return createHash("sha256").update(JSON.stringify(tables.map(({ schema, name, columns, constraints }) => ({ schema, name, columns, constraints })))).digest("hex");
+}
 
 export async function loadMetadata(pool: Pool, schemas: string[]): Promise<DbMetadata> {
   const cols = await pool.query<{ table_schema: string; table_name: string; column_name: string; data_type: string; is_nullable: string }>(

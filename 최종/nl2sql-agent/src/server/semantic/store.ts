@@ -27,8 +27,8 @@ export class SemanticStore {
   }
 
   async list(): Promise<StoredDefinition[]> {
-    const r = await this.pool.query<{ body: unknown; version: number }>("SELECT body, version FROM semantic.definitions ORDER BY id");
-    return r.rows.map((row) => ({ ...definitionSchema.parse(row.body), version: row.version }));
+    const r = await this.pool.query<{ body: unknown; version: number; updated_at: Date }>("SELECT body, version, updated_at FROM semantic.definitions ORDER BY id");
+    return r.rows.map((row) => ({ ...definitionSchema.parse(row.body), version: row.version, updatedAt: row.updated_at.toISOString() }));
   }
 
   async create(raw: unknown): Promise<StoredDefinition> {
@@ -59,8 +59,8 @@ export class SemanticStore {
 
   async saveRun(log: RunLog): Promise<void> {
     await this.pool.query(
-      "INSERT INTO semantic.agent_runs (request_id, log) VALUES ($1, $2::jsonb) ON CONFLICT (request_id) DO NOTHING",
-      [log.requestId, JSON.stringify(log)],
+      "INSERT INTO semantic.agent_runs (request_id, log, schema_version) VALUES ($1, $2::jsonb, $3) ON CONFLICT (request_id) DO NOTHING",
+      [log.requestId, JSON.stringify(log), log.schemaVersion ?? null],
     );
   }
 
@@ -73,7 +73,7 @@ export class SemanticStore {
     }));
   }
 
-  async approve(requestId: string, approved: boolean): Promise<boolean> {
+  async approve(requestId: string, approved: boolean, schemaVersion?: string): Promise<boolean> {
     const r = await this.pool.query(
       `UPDATE semantic.agent_runs SET approved=$2,
         approved_revision=CASE WHEN $2 THEN (SELECT value FROM semantic.revision WHERE singleton=true) ELSE NULL END,
@@ -81,32 +81,33 @@ export class SemanticStore {
         WHERE request_id=$1 AND log->>'finalStatus'='passed' AND log->>'finalSql' IS NOT NULL
           AND (NOT $2 OR log->>'definitionVersion' = 'semantic.v' || (SELECT value::text FROM semantic.revision WHERE singleton=true))
           -- 후보(비공식) 정의로 계산한 결과는 확정 지식으로 승인하지 않는다. 정의를 공식화한 뒤 다시 실행해야 한다.
-          AND (NOT $2 OR coalesce(jsonb_array_length(log->'resolution'->'candidateIds'), 0) = 0)`,
-      [requestId, approved],
+          AND (NOT $2 OR coalesce(jsonb_array_length(log->'resolution'->'candidateIds'), 0) = 0)
+          AND (NOT $2 OR schema_version=$3)`,
+      [requestId, approved, schemaVersion ?? null],
     );
     return Boolean(r.rowCount);
   }
 
-  async approvedExamples(revision: number): Promise<{ requestId: string; question: string; sql: string; definitionIds: string[] }[]> {
+  async approvedExamples(revision: number, schemaVersion?: string): Promise<{ requestId: string; question: string; sql: string; definitionIds: string[] }[]> {
     // ponytail: 전역 revision 변경 시 기존 승인 사례를 모두 제외한다. 정의별 의존성 추적이 필요해질 때만 세분화한다.
     const r = await this.pool.query<{ request_id: string; question: string; sql: string; matches: { id: string; score: number }[] | null }>(
       `SELECT request_id, log->>'question' AS question, log->>'finalSql' AS sql,
          log->'retrievedContext'->'matches' AS matches
-       FROM semantic.agent_runs WHERE approved=true AND approved_revision=$1
+       FROM semantic.agent_runs WHERE approved=true AND approved_revision=$1 AND schema_version=$2
        ORDER BY approved_at DESC LIMIT 100`,
-      [revision],
+      [revision, schemaVersion ?? null],
     );
     return r.rows.map((row) => ({
       requestId: row.request_id, question: row.question, sql: row.sql,
-      definitionIds: (row.matches ?? []).filter((match) => match.score >= 8).map((match) => match.id),
+      definitionIds: (row.matches ?? []).map((match) => match.id),
     }));
   }
 }
 
-const globalStore = globalThis as unknown as { nl2sqlSemanticStore?: { url: string; store: SemanticStore } };
-export function getSemanticStore(url: string): SemanticStore {
+const globalStore = globalThis as unknown as { nl2sqlSemanticStore?: { url: string; store: SemanticStore; pool: Pool } };
+export function getSemanticPool(url: string): Pool {
   const existing = globalStore.nl2sqlSemanticStore;
-  if (existing?.url === url) return existing.store;
+  if (existing?.url === url) return existing.pool;
   const pool = new Pool({
     connectionString: url,
     max: 1,
@@ -116,6 +117,10 @@ export function getSemanticStore(url: string): SemanticStore {
     application_name: "nl2sql-agent-semantic",
   });
   const store = new SemanticStore(pool);
-  globalStore.nl2sqlSemanticStore = { url, store };
-  return store;
+  globalStore.nl2sqlSemanticStore = { url, store, pool };
+  return pool;
+}
+export function getSemanticStore(url: string): SemanticStore {
+  getSemanticPool(url);
+  return globalStore.nl2sqlSemanticStore!.store;
 }

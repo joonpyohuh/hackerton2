@@ -30,7 +30,7 @@ export const definitionSchema = z.object({
   source: z.string().max(300).default("출처 미기재"),
 });
 export type Definition = z.infer<typeof definitionSchema>;
-export type StoredDefinition = Definition & { version: number };
+export type StoredDefinition = Definition & { version: number; updatedAt?: string };
 /** 시드 작성용 — 근거(authority·source)는 아래 SEED_AUTHORITY에서 붙인다. */
 export type SeedInput = Omit<Definition, "authority" | "source">;
 

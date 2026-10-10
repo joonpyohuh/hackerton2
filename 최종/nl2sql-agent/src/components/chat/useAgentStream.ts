@@ -71,8 +71,8 @@ export function useAgentStream() {
     turnsRef.current = turns;
   }, [turns]);
 
-  const ask = useCallback(async (question: string) => {
-    const history = toHistory(turnsRef.current);
+  const ask = useCallback(async (question: string, prior?: ConversationTurn[]) => {
+    const history = prior ?? toHistory(turnsRef.current);
     const id = crypto.randomUUID();
     const update = (fn: (t: Turn) => Turn) => setTurns((ts) => ts.map((t) => (t.id === id ? fn(t) : t)));
     setTurns((ts) => [...ts, { id, question, stage: "resolving", attemptNo: 0, attempts: [], context: null, resolution: null, response: null, error: null }]);

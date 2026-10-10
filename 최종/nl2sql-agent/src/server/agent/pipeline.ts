@@ -210,6 +210,7 @@ export async function* runAgentPipeline(
         matches: context.matches, exampleMatches: context.exampleMatches,
       } : undefined,
       definitionVersion: context?.definitionVersion ?? null,
+      schemaVersion: context?.schemaVersion ?? null,
       ...(resolution ? { resolution } : {}),
       history,
       initialSql: attempts.find((a) => a.sql)?.sql ?? null,
@@ -381,7 +382,8 @@ function definitionRefs(ctx: RetrievedContext, res: Resolution): string[] {
 function resolutionIssue(res: Resolution): IssueType {
   if (res.status === "unavailable") return "data_unavailable";
   if (res.status === "undefined") return "definition_missing";
-  return res.assumptions.length ? "assumption_needed" : "definition_ambiguous";
+  // 선택지가 있으면 계산 기준 선택 문제다. 선택지 없이 가정만 남았을 때만 가정 확인으로 분류한다.
+  return res.options.length || !res.assumptions.length ? "definition_ambiguous" : "assumption_needed";
 }
 
 /** 마지막 시도에서 어느 단계가 막혔는지로 정의 문제와 기술 오류를 구분한다. */
