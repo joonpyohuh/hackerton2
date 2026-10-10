@@ -90,7 +90,7 @@ export const SEED_DEFINITIONS: Definition[] = [
     missing: "UNKNOWN은 별도 범주로 유지.", caveat: "UNKNOWN 비중이 높아 연령대별 해석에 주의.", status: "ready",
   }),
   d({
-    id: "plan", kind: "dimension", name: "요금제", aliases: ["이용권", "상품", "구독 상품"],
+    id: "plan", kind: "dimension", name: "요금제", aliases: ["이용권 상품", "상품", "구독 상품"],
     description: "결제 기록의 상품 코드와 이름.", tables: ["analytics.payment_fact"], columns: ["payment_fact.product_code", "payment_fact.product_name", "payment_fact.payment_order"], joins: [],
     rule: "p.product_code와 p.product_name을 함께 GROUP BY. 첫 결제 상품이면 p.payment_order = 1.",
     numerator: null, denominator: null, grain: "결제 건 또는 첫 결제 고객(질문에 명시)", period: "결제일 기준", unit: "범주",

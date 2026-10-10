@@ -41,4 +41,7 @@ describe("질문별 시맨틱 검색", () => {
     expect(matchDefinitions("결제 후 D+14 미시청 고객", definitions)[0]?.id).toBe("postpayment_unwatched_customer_n");
     expect(matchDefinitions("내 선호 장르", definitions)[0]?.id).toBe("preferred_genre");
   });
+  it("이용권 조회 고객 질문에 상품 차원을 섞지 않는다", () => {
+    expect(matchDefinitions("이용권 관심 고객은 몇 명이야?", definitions).map((item) => item.id)).toEqual(["voucher_interest_customer"]);
+  });
 });
