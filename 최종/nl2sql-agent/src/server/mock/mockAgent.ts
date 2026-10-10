@@ -4,12 +4,15 @@
  */
 import type { AgentEvent, AgentResponse, Attempt, CheckResult, RunningStage } from "@/lib/agent/contract";
 
-export type MockScenario = "success_after_retry" | "clarification" | "repeated_error";
+export type MockScenario = "success_after_retry" | "clarification" | "repeated_error" | "unsupported_question";
 
 export function pickScenario(question: string): MockScenario {
   if (/유지율|이탈률|전환율/.test(question)) return "clarification";
   if (/삭제|drop|delete|update|truncate/i.test(question)) return "repeated_error";
-  return "success_after_retry";
+  if (/지난달/.test(question) && /지역별/.test(question) && /주문/.test(question) && /금액|매출/.test(question)) {
+    return "success_after_retry";
+  }
+  return "unsupported_question";
 }
 
 export const MOCK_EXAMPLES: { question: string; scenario: MockScenario }[] = [
@@ -72,6 +75,20 @@ export async function* runMockAgent(question: string, options: Options = {}): As
       missingDefinitions: ["유지율 — 분모 정의", "유지율 — 관측 기간"],
     };
     yield { type: "final", response };
+    return;
+  }
+
+  if (scenario === "unsupported_question") {
+    yield {
+      type: "final",
+      response: {
+        status: "failed",
+        ...base(),
+        attempts: [],
+        message: "Mock 모드에서는 이 질문에 답할 수 없습니다.",
+        reasons: ["Mock 데이터에는 지난달 지역별 주문 금액만 있고 프로그램 인기 데이터는 없습니다. 실제 데이터 조회나 SQL 검증은 실행하지 않았습니다."],
+      },
+    };
     return;
   }
 

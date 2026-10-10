@@ -31,6 +31,17 @@ describe("runMockAgent", () => {
     if (last?.type !== "final" || last.response.status !== "failed") throw new Error("failed 아님");
     expect(last.response.attempts.every((a) => a.execution.status === "skipped")).toBe(true);
   });
+
+  it("Mock 데이터에 없는 질문에는 고정 결과를 반환하지 않는다", async () => {
+    const events = await collect("지난달에 어떤 프로그램이 제일 인기였어?");
+    const last = events.at(-1);
+    expect(pickScenario("지난달에 어떤 프로그램이 제일 인기였어?")).toBe("unsupported_question");
+    if (last?.type !== "final") throw new Error("final 응답이 아님");
+    expect(last.response.status).toBe("failed");
+    if (last.response.status !== "failed") throw new Error("failed 응답이 아님");
+    expect(last.response.reasons[0]).toContain("프로그램 인기 데이터");
+    expect(last.response.attempts).toHaveLength(0);
+  });
 });
 
 describe("NDJSON", () => {
