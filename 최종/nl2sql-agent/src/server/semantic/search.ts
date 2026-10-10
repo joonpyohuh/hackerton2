@@ -1,7 +1,7 @@
 import type { StoredDefinition } from "./definitions";
 
 export type Match = { id: string; name: string; kind: StoredDefinition["kind"]; score: number; version: number };
-const normalize = (s: string) => s.normalize("NFKC").toLocaleLowerCase("ko-KR").replace(/\s+/g, " ").trim();
+const normalize = (s: string) => s.normalize("NFKC").toLocaleLowerCase("ko-KR").replace(/\bd\+\d+\b/g, "d+n").replace(/\d+일/g, "n일").replace(/\s+/g, " ").trim();
 const words = (s: string) => new Set(normalize(s).match(/[\p{L}\p{N}_]{2,}/gu) ?? []);
 
 export function scoreText(question: string, text: string): number {

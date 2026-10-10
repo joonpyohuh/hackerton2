@@ -23,4 +23,22 @@ describe("질문별 시맨틱 검색", () => {
   it("관련 없는 승인 사례는 검색 점수 0으로 제외할 수 있다", () => {
     expect(scoreText("초기 미시청률", "요금제별 결제")).toBe(0);
   });
+  it("요청한 고객 여정·채널·선호 정의 16개를 모두 등록한다", () => {
+    const ids = [
+      "signup_customers", "exploratory_customer", "voucher_interest_customer", "first_payment_customer_n",
+      "payment_conversion_30", "active_customer", "postpayment_unwatched_customer_n", "early_watch_failure",
+      "watch_retained_customer_22_28", "watch_retention_22_28", "vod_customer", "movie_customer",
+      "live_customer", "push_reachable_customer", "preferred_content", "preferred_genre",
+    ];
+    for (const id of ids) expect(definitions.find((item) => item.id === id)).toBeDefined();
+    expect(new Set(definitions.map((item) => item.id)).size).toBe(definitions.length);
+  });
+  it("D+N 기간과 선호 장르를 질문별로 찾는다", () => {
+    expect(matchDefinitions("D+14 첫 결제 고객은 몇 명?", definitions)[0]?.id).toBe("first_payment_customer_n");
+    expect(matchDefinitions("D+14 결제 전환율은?", definitions)[0]?.id).toBe("payment_conversion_30");
+    expect(matchDefinitions("가입 후 14일 내 첫 결제 고객", definitions)[0]?.id).toBe("first_payment_customer_n");
+    expect(matchDefinitions("결제 후 14일 활성 고객", definitions)[0]?.id).toBe("active_customer");
+    expect(matchDefinitions("결제 후 D+14 미시청 고객", definitions)[0]?.id).toBe("postpayment_unwatched_customer_n");
+    expect(matchDefinitions("내 선호 장르", definitions)[0]?.id).toBe("preferred_genre");
+  });
 });
