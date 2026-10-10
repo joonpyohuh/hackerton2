@@ -7,9 +7,9 @@ DATA_PATH = Path(os.getenv('DATA_JS_PATH', str(ROOT / 'data.js')))
 WEB_DIST = ROOT / 'web' / 'dist'
 ADMIN_TOKEN = os.getenv('ADMIN_TOKEN', '')
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
-OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'gpt-5.4-mini')
+OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'gpt-6-astra')
 # Reasoning models (gpt-5.x, o-series) accept this; leave empty for gpt-4.x models.
-OPENAI_REASONING_EFFORT = os.getenv('OPENAI_REASONING_EFFORT', 'low').strip()
+OPENAI_REASONING_EFFORT = os.getenv('OPENAI_REASONING_EFFORT', 'high').strip()
 OPENAI_CONNECT_TIMEOUT_SECONDS = float(os.getenv('OPENAI_CONNECT_TIMEOUT_SECONDS', '10'))
 OPENAI_READ_TIMEOUT_SECONDS = float(os.getenv('OPENAI_READ_TIMEOUT_SECONDS', '90'))
 OPENAI_MAX_RETRIES = max(0, min(2, int(os.getenv('OPENAI_MAX_RETRIES', '1'))))

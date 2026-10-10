@@ -11,10 +11,18 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   if (!sameOrigin(req)) return NextResponse.json({ error: "허용되지 않은 로그인 요청입니다." }, { status: 403 });
   try {
-    const { email, password } = z.object({ email: z.email().max(200).transform((s) => s.toLowerCase()), password: z.string().min(1).max(200) }).parse(await req.json());
-    const { user, token } = await workspaceStore().login(email, password, req.headers.get("x-vercel-forwarded-for") ?? req.headers.get("x-forwarded-for")?.split(",")[0] ?? "local");
+    const body = await req.json();
+    const ip = req.headers.get("x-vercel-forwarded-for") ?? req.headers.get("x-forwarded-for")?.split(",")[0] ?? "local";
+    const guest = body?.guest === true;
+    let session;
+    if (guest) session = await workspaceStore().guest(ip);
+    else {
+      const { email, password } = z.object({ email: z.email().max(200).transform((s) => s.toLowerCase()), password: z.string().min(1).max(200) }).parse(body);
+      session = await workspaceStore().login(email, password, ip);
+    }
+    const { user, token } = session;
     const response = NextResponse.json({ user });
-    response.cookies.set(SESSION_COOKIE, token, { httpOnly: true, secure: new URL(req.url).protocol === "https:", sameSite: "lax", path: "/", maxAge: 12 * 3600 });
+    response.cookies.set(SESSION_COOKIE, token, { httpOnly: true, secure: new URL(req.url).protocol === "https:", sameSite: "lax", path: "/", maxAge: guest ? 30 * 24 * 3600 : 12 * 3600 });
     return response;
   } catch (e) { return workspaceError(e); }
 }

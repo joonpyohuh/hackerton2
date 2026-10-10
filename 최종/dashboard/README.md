@@ -12,7 +12,7 @@ pip install -r requirements.txt
 Copy-Item .env.example .env
 ```
 
-`.env`를 열어 `ADMIN_TOKEN`을 길고 무작위인 문자열로 바꿉니다. OpenAI API 키를 `OPENAI_API_KEY`에 넣으세요. **키가 없으면 KPI/SQL/CSV/연관 그래프는 동작하고 GPT 생성·채팅·팩트 분석만 503 오류로 중단됩니다.** 기본 모델은 `gpt-5.4-mini`이며 `OPENAI_MODEL`로 바꿀 수 있습니다(gpt-4.x 계열로 바꾸면 `OPENAI_REASONING_EFFORT`를 비우세요). 연결 진단: `python check_openai.py`.
+`.env`를 열어 `ADMIN_TOKEN`을 길고 무작위인 문자열로 바꿉니다. OpenAI API 키를 `OPENAI_API_KEY`에 넣으세요. **키가 없으면 KPI/SQL/CSV/연관 그래프는 동작하고 GPT 생성·채팅·팩트 분석만 503 오류로 중단됩니다.** 기본 모델은 `gpt-6-astra`이며 `OPENAI_MODEL`로 바꿀 수 있습니다(gpt-4.x 계열로 바꾸면 `OPENAI_REASONING_EFFORT`를 비우세요). 연결 진단: `python check_openai.py`.
 
 `.env` 자동 로딩을 위해 다음 중 하나를 실행하세요:
 

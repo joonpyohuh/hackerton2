@@ -94,6 +94,6 @@ def strategy_prompt(summary):
 
 def chat_prompt(summary,history,message):
     history=[{'role':str(x.get('role','user')),'text':str(x.get('text',''))[:1500]} for x in history[-8:]]
-    return ('현재 타깃 요약:\n'+json.dumps(summary,ensure_ascii=False)
+    return ('현재 필터에서 SQL로 계산한 타깃 집계:\n'+json.dumps(summary,ensure_ascii=False)
       +'\n최근 대화:\n'+json.dumps(history,ensure_ascii=False)
-      +'\n사용자 질문:\n'+message[:2000]+'\n데이터에서 확인되지 않는 사항은 확실하지 않다고 답하세요. 가설을 만들지 마세요.')
+      +'\n사용자 질문:\n'+message[:2000]+'\n전체 타깃 중 우선순위를 물으면 세 집단을 비교하고, 선택 기준(규모·푸시 도달·목표)을 명시하세요. 목표가 다르면 순위가 달라질 수 있음을 알려주세요. 입력에 없는 효과·인과·현재 시점 실적은 만들지 마세요. 숫자는 입력값만 인용하고, 데이터에서 확인되지 않는 사항은 확실하지 않다고 답하세요.')

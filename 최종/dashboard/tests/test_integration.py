@@ -112,6 +112,22 @@ def test_ai_endpoints_open_without_token(client,monkeypatch):
         settings.OPENAI_API_KEY=''
 
 
+def test_ai_compares_all_targets_from_sql(client,monkeypatch):
+    from backend import ai,settings
+    settings.OPENAI_API_KEY='fake-test-key'
+    def answer(prompt,structured=False,transport=None):
+        assert all(str(n) in prompt for n in (18991,8152,2571,929,4244,1638))
+        assert '세 집단을 비교' in prompt
+        return '푸시 도달 고객 기준 T1이 가장 큽니다.'
+    monkeypatch.setattr(ai,'call',answer)
+    try:
+        r=client.post('/api/ai/chat',json={'message':'가장 타깃으로 할 만한 집단이 뭐야?'})
+        assert r.status_code==200
+        assert r.json()['reply'].startswith('푸시 도달 고객 기준 T1')
+    finally:
+        settings.OPENAI_API_KEY=''
+
+
 def test_ai_rate_limit_returns_429(client,monkeypatch):
     from backend import ai,settings
     monkeypatch.setattr(settings,'AI_RATE_LIMIT',2)

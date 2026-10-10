@@ -5,7 +5,7 @@ import { buildLiveAgent } from "@/server/agent/live";
 import { runAgentPipeline } from "@/server/agent/pipeline";
 import { EnvConfigError, getEnv } from "@/server/config/env";
 import { runMockAgent } from "@/server/mock/mockAgent";
-import { requireUser } from "@/server/workspace/access";
+import { requireUser, workspaceError } from "@/server/workspace/access";
 import { workspaceStore } from "@/server/workspace/store";
 import type { User } from "@/lib/workspace";
 
@@ -62,5 +62,9 @@ export async function POST(req: Request) {
 
   const live = buildLiveAgent(env);
   if (!live.ok) return errorJson(`live 모드를 실행할 수 없습니다. 준비되지 않은 항목: ${live.missing.join(", ")}`, 501);
+  if (user.email.endsWith("@guest.local")) {
+    try { await workspaceStore().limitGuestAnalysis(req.headers.get("x-vercel-forwarded-for") ?? req.headers.get("x-forwarded-for")?.split(",")[0] ?? "local"); }
+    catch (e) { return workspaceError(e); }
+  }
   return streamEvents(runAgentPipeline(question, live.deps, live.config, req.signal, history), req.signal, user);
 }

@@ -9,8 +9,8 @@ from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).parent / '.env')
 key = os.getenv('OPENAI_API_KEY', '').strip()
-model = os.getenv('OPENAI_MODEL', 'gpt-5.4-mini').strip()
-effort = os.getenv('OPENAI_REASONING_EFFORT', 'low').strip()
+model = os.getenv('OPENAI_MODEL', 'gpt-6-astra').strip()
+effort = os.getenv('OPENAI_REASONING_EFFORT', 'high').strip()
 print(f'OpenAI 모델: {model}')
 print('API 키:', '설정됨 (값은 표시하지 않음)' if key else '미설정')
 if not key:

@@ -38,7 +38,9 @@ class StrategyRequest(BaseModel):
     target_id: str
     filters: Filters=Field(default_factory=Filters)
 
-class ChatRequest(StrategyRequest):
+class ChatRequest(BaseModel):
+    target_id:str|None=None
+    filters:Filters=Field(default_factory=Filters)
     message:str=Field(min_length=1,max_length=2000)
     history:list[dict[str,str]]=Field(default_factory=list,max_length=8)
 
@@ -166,11 +168,11 @@ def strategy(req:StrategyRequest):
 
 @app.post('/api/ai/chat',dependencies=[Depends(ai_rate_limited)])
 def chat(req:ChatRequest):
-    s=safely(lambda c:analysis.summary(c,req.target_id,req.filters.model_dump(exclude_none=True)))
+    s=safely(lambda c:analysis.summary(c,req.target_id,req.filters.model_dump(exclude_none=True)) if req.target_id and req.target_id!='all' else analysis.list_summaries(c,req.filters.model_dump(exclude_none=True)))
     try: response=ai.call(ai.chat_prompt(s,req.history,req.message),structured=False)
     except ai.AINotConfigured as ex: raise HTTPException(503,str(ex))
     except ai.AICallFailed as ex: raise HTTPException(502,str(ex))
-    return {'reply':response,'snapshot_id':s['snapshot_id'],'model':settings.OPENAI_MODEL}
+    return {'reply':response,'snapshot_id':s.get('snapshot_id',s.get('snapshot')),'model':settings.OPENAI_MODEL}
 
 @app.get('/api/recommendations')
 def recommendations(target_id:str|None=None,limit:int=Query(20,ge=1,le=100)):

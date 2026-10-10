@@ -319,7 +319,7 @@ footer { padding: 48px 0 64px; font-size: 11px; color: var(--muted); }
 <body>
 
 <nav class="app-nav" aria-label="서비스 이동">
-  <div class="wrap"><strong>OTT PULSE</strong><a href="/" aria-current="page">대시보드</a><a href="/insights">지표 연관 지도</a><a href="https://nl2sql-agent-joonpyohuhs-projects.vercel.app/">NL2SQL 분석</a></div>
+  <div class="wrap"><strong>OTT PULSE</strong><a href="/" aria-current="page">대시보드</a><a href="/insights">지표 연관 지도</a><a href="https://nl2sql-agent-theta.vercel.app/">NL2SQL 분석</a></div>
 </nav>
 
 <header class="mast">
@@ -429,7 +429,7 @@ footer { padding: 48px 0 64px; font-size: 11px; color: var(--muted); }
 
   <div class="ai-step"><span class="ai-no">01</span><h3>타깃 선택</h3></div>
   <label for="aiTarget" class="ai-vh">마케팅 타깃</label>
-  <select id="aiTarget"><option value="T1">T1 · 이용권 관심 후 미결제</option><option value="T2">T2 · 결제 후 첫 시청 실패</option><option value="T3">T3 · 초기 시청 후 유지 실패</option></select>
+  <select id="aiTarget"><option value="all">전체 타깃 비교</option><option value="T1">T1 · 이용권 관심 후 미결제</option><option value="T2">T2 · 결제 후 첫 시청 실패</option><option value="T3">T3 · 초기 시청 후 유지 실패</option></select>
   <div id="aiSummary" class="ai-summary"></div>
 
   <div class="ai-step"><span class="ai-no">02</span><h3>전략 분석</h3></div>
@@ -442,7 +442,8 @@ footer { padding: 48px 0 64px; font-size: 11px; color: var(--muted); }
   <div class="ai-step"><span class="ai-no">03</span><h3>추가 질문</h3></div>
   <div id="aiAnswer" class="ai-thread" aria-live="polite"></div>
   <label for="aiQuestion" class="ai-vh">GPT에게 질문</label>
-  <textarea id="aiQuestion" rows="3" placeholder="예: 이 타깃에게 효과를 검증할 A/B 테스트를 설계해줘"></textarea>
+  <button id="aiSuggested" class="ai-link" type="button">추천 질문: 가장 타깃으로 할 만한 집단이 뭐야? ↗</button>
+  <textarea id="aiQuestion" rows="3" placeholder="예: 가장 타깃으로 할 만한 집단이 뭐야?"></textarea>
   <div class="ai-row ai-row-end"><small class="ai-hint">Enter 전송 · Shift+Enter 줄바꿈</small><button id="aiAsk" class="ai-action" type="button">질문 보내기</button></div>
 
   <div class="ai-step ai-step-split"><div><span class="ai-no">04</span><h3>저장된 전략</h3></div><button id="aiReload" class="ai-link" type="button">새로고침</button></div>

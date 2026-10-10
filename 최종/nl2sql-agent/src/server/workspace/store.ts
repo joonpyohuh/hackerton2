@@ -36,6 +36,21 @@ export class WorkspaceStore {
     return { token, user };
   }
   async logout(token: string) { await this.pool.query("DELETE FROM workspace.sessions WHERE token_hash=$1", [tokenHash(token)]); }
+  async guest(ip: string) {
+    const key = tokenHash(`guest|${ip}`);
+    const attempts = await this.pool.query<{ attempts: number }>(`INSERT INTO workspace.login_attempts(key) VALUES($1) ON CONFLICT(key) DO UPDATE SET attempts=CASE WHEN workspace.login_attempts.started_at<now()-interval '15 minutes' THEN 1 ELSE workspace.login_attempts.attempts+1 END, started_at=CASE WHEN workspace.login_attempts.started_at<now()-interval '15 minutes' THEN now() ELSE workspace.login_attempts.started_at END RETURNING attempts`, [key]);
+    if (attempts.rows[0].attempts > 10) throw new WorkspaceError("새 방문자 접속이 많습니다. 잠시 후 다시 시도해 주세요.", 429);
+    const id = randomUUID();
+    const token = randomBytes(32).toString("hex");
+    await this.pool.query("INSERT INTO workspace.users(id,email,name,role,password_hash) VALUES($1,$2,'방문자','marketer',$3)", [id, `${id}@guest.local`, await passwordHash(randomBytes(32).toString("hex"))]);
+    await this.pool.query("INSERT INTO workspace.sessions(token_hash,user_id,expires_at) VALUES($1,$2,now()+interval '30 days')", [tokenHash(token), id]);
+    return { user: { id, email: `${id}@guest.local`, name: "방문자", role: "marketer" as const }, token };
+  }
+  async limitGuestAnalysis(ip: string) {
+    const key = tokenHash(`analysis|${ip}`);
+    const r = await this.pool.query<{ attempts: number }>(`INSERT INTO workspace.login_attempts(key) VALUES($1) ON CONFLICT(key) DO UPDATE SET attempts=CASE WHEN workspace.login_attempts.started_at<now()-interval '15 minutes' THEN 1 ELSE workspace.login_attempts.attempts+1 END, started_at=CASE WHEN workspace.login_attempts.started_at<now()-interval '15 minutes' THEN now() ELSE workspace.login_attempts.started_at END RETURNING attempts`, [key]);
+    if (r.rows[0].attempts > 20) throw new WorkspaceError("AI 질문 요청이 많습니다. 15분 후 다시 시도해 주세요.", 429);
+  }
   async createUser(actor: User, data: { email: string; name: string; role: User["role"]; password: string }) {
     if (actor.role !== "analyst") throw new WorkspaceError("분석가만 계정을 발급할 수 있습니다.", 403);
     const id = randomUUID();

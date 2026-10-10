@@ -6,7 +6,7 @@
   const els = {
     dock:$('aiDock'), panel:$('aiPanel'), close:$('aiClose'), status:$('aiStatus'),
     target:$('aiTarget'), key:$('aiToken'), summary:$('aiSummary'), result:$('aiResult'),
-    answer:$('aiAnswer'), input:$('aiQuestion'), generate:$('aiGenerate'), ask:$('aiAsk'),
+    answer:$('aiAnswer'), input:$('aiQuestion'), suggested:$('aiSuggested'), generate:$('aiGenerate'), ask:$('aiAsk'),
     history:$('aiHistory'), reload:$('aiReload'), sql:$('aiSql'), updated:$('aiUpdated'),
     events:$('aiEvents'), refreshData:$('aiRefreshData'), admin:$('aiAdmin'),
   };
@@ -79,7 +79,7 @@
       const [health,overview]=await Promise.all([json('/health'),json('/overview?'+qs())]);
       lastSnapshot=health.snapshot_id;
       if(!busy && seq===statusSeq) status(health.ai_configured
-        ? `서버 연결 · ${pretty(health.customers)}명 · GPT 준비됨 — 타깃을 고르고 분석을 시작하세요.`
+        ? `서버 연결 · ${pretty(health.customers)}명 · GPT 준비됨 — 전체 타깃에 관해 바로 질문하세요.`
         : `서버 연결 · ${pretty(health.customers)}명 · GPT 키 미설정 (서버 .env의 OPENAI_API_KEY 필요)`, health.ai_configured?'':'notice');
       updateResults(overview);
     }catch(e){if(seq===statusSeq) status(e.message,'error');}
@@ -111,6 +111,7 @@
   }
   async function generate(){
     if(busy)return;
+    if(els.target.value==='all'){status('캠페인 전략을 생성하려면 T1~T3 중 타깃을 선택해 주세요. 전체 비교는 아래 질문창에서 할 수 있습니다.','notice');els.input.focus();return;}
     const label=els.generate.textContent;
     setBusy(true);els.generate.textContent='분석 중…';
     els.result.innerHTML=skeleton;
@@ -138,12 +139,12 @@
     const mine=bubble('user',msg);els.input.value='';
     const typing=document.createElement('div');typing.className='ai-typing ai-in';typing.setAttribute('aria-label','GPT 응답 작성 중');typing.innerHTML='<i></i><i></i><i></i>';
     els.answer.appendChild(typing);
-    status('GPT가 선택한 타깃 데이터를 근거로 답하고 있습니다.','busy');
+    status('GPT가 현재 필터의 SQL 집계를 근거로 답하고 있습니다.','busy');
     try{
       const result=await json('/ai/chat',{method:'POST',body:{target_id:els.target.value,filters:config(),message:msg,history:CHAT.slice(-8)}});
       CHAT.push({role:'user',text:msg},{role:'assistant',text:result.reply});
       typing.remove();bubble('assistant',result.reply);
-      status('선택한 타깃 데이터 근거 응답 · 캠페인 발송 기능 없음');
+      status('SQL 집계 데이터 근거 응답 · 캠페인 발송 기능 없음');
     }catch(e){
       // drop the unanswered bubble and restore the question so it can be resent
       typing.remove();mine.remove();bubble(errKind(e),e.message);
@@ -155,7 +156,7 @@
   async function loadHistory(){
     const target=els.target.value;
     try{
-      const d=await json('/recommendations?target_id='+encodeURIComponent(target)+'&limit=6');
+      const d=await json('/recommendations?'+(target==='all'?'':'target_id='+encodeURIComponent(target)+'&')+'limit=6');
       if(target!==els.target.value) return;  // target changed mid-request
       historyItems=d.items;
       els.history.innerHTML=d.items.length
@@ -164,6 +165,7 @@
     }catch(e){els.history.innerHTML=`<p class="ai-empty">${esc(e.message)}</p>`;}
   }
   async function showSql(){
+    if(els.target.value==='all'){status('전체 비교는 T1~T3 SQL 집계에 기반합니다. 각 타깃을 선택해 SQL을 확인하세요.','notice');return;}
     try{const d=await json('/targets/'+els.target.value+'/sql?'+qs());
       els.result.innerHTML='';
       const pre=document.createElement('pre');pre.className='ai-in';
@@ -211,6 +213,7 @@
   els.close.addEventListener('click',close);
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&visible)close();});
   els.generate.addEventListener('click',generate);els.ask.addEventListener('click',ask);
+  els.suggested.addEventListener('click',()=>{els.target.value='all';clearTarget();els.input.value='가장 타깃으로 할 만한 집단이 뭐야?';ask();});
   els.input.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();ask();}});
   els.history.addEventListener('click',e=>{
     const b=e.target.closest('[data-rec]');if(!b)return;
