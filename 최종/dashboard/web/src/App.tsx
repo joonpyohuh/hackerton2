@@ -156,7 +156,7 @@ export default function App() {
             <nav className="flex gap-5" aria-label="시각화 형태">
               {VIEWS.map((v) => (
                 <button key={v} type="button" onClick={() => setView(v)} aria-pressed={view === v}
-                  className={`relative cursor-pointer pb-1 text-[15px] tracking-[-0.01em] ${view === v ? "font-semibold text-ink" : "text-muted hover:text-ink"}`}>
+                  className={`relative cursor-pointer rounded-md border px-3 py-2 text-[15px] tracking-[-0.01em] transition-colors ${view === v ? "border-sky-300 bg-sky-300 font-semibold text-slate-950 shadow-sm" : "border-axis bg-surface font-medium text-ink-2 hover:border-accent hover:bg-accent-wash hover:text-ink"}`}>
                   {VIEW_LABEL[v]}
                   {analysis && !stale && analysis.recommended_view === v && <sup className="ml-0.5 text-[11px] text-accent">AI</sup>}
                   {view === v && <motion.span layoutId="view-underline" className="absolute inset-x-0 -bottom-px h-px bg-ink" />}
