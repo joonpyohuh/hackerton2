@@ -62,10 +62,20 @@ def test_filters_match_sql_and_csv(client):
         assert len(page.json()['rows'])==min(10,t['count'])
 
 
+@pytest.fixture(autouse=True)
+def fresh_ai_limit():
+    from backend import main
+    main.ai_limiter.reset()
+    yield
+    main.ai_limiter.reset()
+
+
 def test_protection_and_validation(client):
+    # Customer-level extraction and data mutation stay admin-only.
     assert client.get('/api/targets/T1/export').status_code==401
-    assert client.get('/api/recommendations').status_code==401
+    assert client.get('/api/targets/T1/customers').status_code==401
     assert client.post('/api/snapshots/refresh').status_code==401
+    assert client.get('/api/targets/T1/export',headers={'X-Admin-Token':'wrong'}).status_code==401
     assert client.get('/api/overview?from_date=not-a-date').status_code==400
     assert client.get('/api/targets/X/sql').status_code==400
     assert client.get('/api/targets/T1/customers',headers=TOKEN,params={'limit':1000}).status_code==422
@@ -79,11 +89,61 @@ def test_snapshot_reload_idempotent(client):
 
 
 def test_ai_requires_key_and_does_not_fabricate(client):
-    r=client.post('/api/ai/strategy',headers=TOKEN,json={'target_id':'T1'})
+    # No admin token: AI analysis is public now; without an OpenAI key it fails with 503, never 401.
+    r=client.post('/api/ai/strategy',json={'target_id':'T1'})
     assert r.status_code==503 and 'OPENAI_API_KEY' in r.json()['detail']
-    r=client.post('/api/ai/chat',headers=TOKEN,json={'target_id':'T2','message':'전략은?'})
+    r=client.post('/api/ai/chat',json={'target_id':'T2','message':'전략은?'})
     assert r.status_code==503
-    assert client.get('/api/recommendations',headers=TOKEN).json()['items']==[]
+    r=client.get('/api/recommendations')
+    assert r.status_code==200 and r.json()['items']==[]
+    assert client.get('/api/recommendations?target_id=X').status_code==400
+
+
+def test_ai_endpoints_open_without_token(client,monkeypatch):
+    from backend import ai,settings
+    settings.OPENAI_API_KEY='fake-test-key'
+    monkeypatch.setattr(ai,'call',lambda prompt,structured=False,transport=None:
+                        ({f:'모의 응답' for f in ai.FIELDS} if structured else '모의 채팅'))
+    try:
+        assert client.post('/api/ai/strategy',json={'target_id':'T3'}).status_code==200
+        assert client.post('/api/ai/chat',json={'target_id':'T3','message':'요약'}).json()['reply']=='모의 채팅'
+        assert client.get('/api/recommendations?target_id=T3').status_code==200
+    finally:
+        settings.OPENAI_API_KEY=''
+
+
+def test_ai_rate_limit_returns_429(client,monkeypatch):
+    from backend import ai,settings
+    monkeypatch.setattr(settings,'AI_RATE_LIMIT',2)
+    monkeypatch.setattr(settings,'AI_RATE_WINDOW_SECONDS',600)
+    settings.OPENAI_API_KEY='fake-test-key'
+    monkeypatch.setattr(ai,'call',lambda prompt,structured=False,transport=None:'모의 채팅')
+    try:
+        body={'target_id':'T1','message':'질문'}
+        assert client.post('/api/ai/chat',json=body).status_code==200
+        assert client.post('/api/ai/chat',json=body).status_code==200
+        r=client.post('/api/ai/chat',json=body)
+        assert r.status_code==429
+        assert '한도' in r.json()['detail'] and int(r.headers['retry-after'])>0
+        # Shared bucket across all AI endpoints; non-AI endpoints are unaffected.
+        assert client.post('/api/ai/strategy',json={'target_id':'T1'}).status_code==429
+        assert client.post('/api/relations/analyze',json={}).status_code==429
+        assert client.get('/api/recommendations').status_code==200
+        assert client.get('/api/overview').status_code==200
+    finally:
+        settings.OPENAI_API_KEY=''
+
+
+def test_rate_limiter_window_and_keys():
+    from backend.main import SlidingWindowLimiter
+    now=[0.0]  # 가짜 시계 — 실행 속도와 무관하게 결정론적으로 검사한다
+    lim=SlidingWindowLimiter(clock=lambda:now[0])
+    assert lim.hit('a',2,60) is None and lim.hit('a',2,60) is None
+    now[0]=10.0
+    assert lim.hit('a',2,60)==50  # 첫 요청 후 60초가 지나야 풀린다
+    assert lim.hit('b',2,60) is None  # per-client buckets
+    now[0]=60.0
+    assert lim.hit('a',2,60) is None  # window slides
 
 
 def test_ai_mock_response_saved_and_chat(client,monkeypatch):
@@ -96,11 +156,11 @@ def test_ai_mock_response_saved_and_chat(client,monkeypatch):
         assert 'T2' in prompt
         return '테스트 채팅 응답'
     monkeypatch.setattr(ai,'call',fake_call)
-    result=client.post('/api/ai/strategy',headers=TOKEN,json={'target_id':'T1'}).json()
+    result=client.post('/api/ai/strategy',json={'target_id':'T1'}).json()
     assert result['id']>=1 and result['strategy']['headline']=='T1 테스트 전략'
-    history=client.get('/api/recommendations?target_id=T1',headers=TOKEN).json()['items']
+    history=client.get('/api/recommendations?target_id=T1').json()['items']
     assert history and history[0]['result']['headline']=='T1 테스트 전략'
-    chat=client.post('/api/ai/chat',headers=TOKEN,json={'target_id':'T2','message':'캠페인'}).json()
+    chat=client.post('/api/ai/chat',json={'target_id':'T2','message':'캠페인'}).json()
     assert chat['reply']=='테스트 채팅 응답'
     settings.OPENAI_API_KEY=''
 

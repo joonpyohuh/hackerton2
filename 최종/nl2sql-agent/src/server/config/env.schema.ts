@@ -51,6 +51,8 @@ export const envSchema = z.object({
   GENERATOR_MODEL: z.string().min(1).default("gpt-4.1-mini"),
   // 상위 추론 모델은 기본값 없이 반드시 환경변수로 지정한다.
   VERIFIER_MODEL: optionalString,
+  // Semantic Resolver 모델. 미지정 시 VERIFIER_MODEL을 쓴다 (지표 판정은 생성보다 검증에 가까운 작업).
+  RESOLVER_MODEL: optionalString,
   EMBEDDING_MODEL: z.string().min(1).default("text-embedding-3-small"),
   LLM_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(300_000).default(60_000),
 
@@ -62,7 +64,6 @@ export const envSchema = z.object({
   // ── Database ──
   DATABASE_URL_READONLY: readonlyDbUrl, // LLM 생성 SQL 실행 전용
   DATABASE_URL_APP: optionalString, // 로그·RAG 지식 저장용 (SQL 실행에 사용 금지)
-  SEMANTIC_ADMIN_TOKEN: optionalString, // 정의 CRUD·사례 승인 전용
   STATEMENT_TIMEOUT_MS: z.coerce.number().int().min(100).max(60_000).default(5_000),
   MAX_RESULT_ROWS: z.coerce.number().int().min(1).max(10_000).default(1_000),
   // 비어 있으면 어떤 스키마도 허용하지 않는다 (fail-closed). TODO(05단계): 실제 스키마명 확정

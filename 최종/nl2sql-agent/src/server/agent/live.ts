@@ -4,6 +4,8 @@ import type { Env } from "@/server/config/env.schema";
 import { readiness } from "@/server/config/env.schema";
 import { createQueryExecutor, createReaderPool } from "@/server/db/executor";
 import { createMetadataCache } from "@/server/db/metadata";
+import { createValueHintsCache } from "@/server/db/valueHints";
+import { createSemanticResolver } from "@/server/semantic/resolver";
 import { createSemanticVerifier } from "@/server/harness/semanticVerifier";
 import { createStructuralValidator } from "@/server/harness/structural/validator";
 import { createOpenAIChat } from "@/server/llm/chat";
@@ -22,7 +24,7 @@ export function pipelineConfigFromEnv(env: Env): PipelineConfig {
     llmTimeoutMs: env.LLM_TIMEOUT_MS,
     // DB statement_timeout보다 약간 길게 — DB가 먼저 끊고 명확한 오류를 돌려주게 한다.
     executionTimeoutMs: env.STATEMENT_TIMEOUT_MS + 2_000,
-    models: { generator: env.GENERATOR_MODEL, verifier: env.VERIFIER_MODEL ?? null },
+    models: { generator: env.GENERATOR_MODEL, verifier: env.VERIFIER_MODEL ?? null, resolver: env.RESOLVER_MODEL ?? env.VERIFIER_MODEL ?? null },
   };
 }
 
@@ -39,6 +41,7 @@ function readerPool(url: string): Pool {
 }
 
 let metadataCache: { key: string; cache: ReturnType<typeof createMetadataCache> } | null = null;
+let valueHints: { pool: Pool; cache: ReturnType<typeof createValueHintsCache> } | null = null;
 
 /** 실제 구현체 조립. 필수 설정이 하나라도 빠지면 실행하지 않는다 (검증 단계를 건너뛰는 경로 없음). */
 export function buildLiveAgent(env: Env): LiveAgent {
@@ -55,7 +58,16 @@ export function buildLiveAgent(env: Env): LiveAgent {
   const store = getSemanticStore(env.DATABASE_URL_APP);
   const chat = createOpenAIChat(env.OPENAI_API_KEY);
 
+  if (!valueHints || valueHints.pool !== pool) valueHints = { pool, cache: createValueHintsCache(pool) };
+  const hints = valueHints.cache;
+
   const deps: PipelineDeps = {
+    resolver: createSemanticResolver({
+      chat,
+      model: env.RESOLVER_MODEL ?? env.VERIFIER_MODEL,
+      listDefinitions: () => store.list(),
+      valueHints: () => hints.get(),
+    }),
     retriever: createBasicRetriever({ getMetadata: () => metadata.get(), notesVersion: DATA_NOTES_VERSION, store }),
     generator: createSqlGenerator({ chat, model: env.GENERATOR_MODEL, dataNotes: DATA_NOTES }),
     structural: {

@@ -23,7 +23,7 @@ uvicorn backend.main:app --host 127.0.0.1 --port 8000 --env-file .env
 
 브라우저에서 **http://127.0.0.1:8000** 에 접속하세요. `index.html`을 파일 탐색기에서 더블클릭하면 API가 연결되지 않습니다. 첫 실행 시 `data.js` 50,000명 데이터가 `runtime/ott_pulse.sqlite3`의 SQL 스냅샷으로 초기 적재됩니다.
 
-기존 화면의 T1/T2/T3 카드에 **✦ GPT 전략** 버튼이 추가되었고, 오른쪽 아래에 **GPT 마케팅 AI** 버튼이 있습니다. AI 패널에 `.env`의 `ADMIN_TOKEN`을 입력하고 타깃을 선택한 뒤 전략 생성 / 질문 / SQL 확인 / 저장 이력 보기를 사용할 수 있습니다. 타깃 CSV는 이제 브라우저 내 파일 생성이 아니라 **보호된 서버 SQL 조회**로 만들어집니다.
+기존 화면의 T1/T2/T3 카드에 **✦ GPT 전략** 버튼이 추가되었고, 오른쪽 아래에 **GPT 마케팅 AI** 버튼이 있습니다. AI 패널은 **토큰 없이 바로** 사용합니다: ① 타깃 선택 → ② **분석 시작**(전략 생성·자동 저장) → ③ 추가 질문, ④ 저장된 전략은 패널을 열면 자동으로 불러오고 항목을 누르면 다시 표시됩니다. `.env`의 `ADMIN_TOKEN`은 패널 하단 접힌 **관리자 기능**에서만 입력하며, 고객 CSV 추출과 데이터 재적재에만 필요합니다. 타깃 CSV는 브라우저 내 파일 생성이 아니라 **보호된 서버 SQL 조회**로 만들어집니다.
 
 ## 2. 데이터 변경 및 스냅샷
 
@@ -48,18 +48,23 @@ python -m backend.import_snapshot
 | `GET /api/targets/T1/sql?...` | 현재 필터가 반영된 파라미터 SQL | 공개 메타 |
 | `GET /api/targets/T1/customers?...` | 페이지네이션 고객 목록 | ADMIN_TOKEN |
 | `GET /api/targets/T1/export?...` | SQL 고객 CSV 다운로드 | ADMIN_TOKEN |
-| `POST /api/ai/strategy` | 실시간 GPT 호출 + 전략 자동 저장 | ADMIN_TOKEN + GPT 키 |
-| `POST /api/ai/chat` | 선택 타깃 SQL 요약을 포함한 대화 | ADMIN_TOKEN + GPT 키 |
-| `GET /api/recommendations` | SQLite에 저장된 전략 이력 | ADMIN_TOKEN |
+| `POST /api/ai/strategy` | 실시간 GPT 호출 + 전략 자동 저장 | 공개 + GPT 키 · 요청 한도 |
+| `POST /api/ai/chat` | 선택 타깃 SQL 요약을 포함한 대화 | 공개 + GPT 키 · 요청 한도 |
+| `GET /api/recommendations` | SQLite에 저장된 전략 이력(집계 요약만) | 공개 |
+| `GET /api/relations` | 지표 간 연관 통계 | 공개 집계 |
+| `POST /api/relations/analyze` | GPT 팩트 분석 | 공개 + GPT 키 · 요청 한도 |
 | `POST /api/snapshots/refresh` | 변경된 서버 data.js를 SQL에 반영 | ADMIN_TOKEN |
 
-필터 파라미터: `from_date`, `to_date`(YYYY-MM-DD), `dev`,`age`,`gen`,`push`는 현재 `app.js`의 옵션 인덱스와 동일합니다(전체=`all`). 미인증 고객 추출은 401이고, 서버 `ADMIN_TOKEN` 자체가 없으면 보호된 API가 503을 반환합니다.
+필터 파라미터: `from_date`, `to_date`(YYYY-MM-DD), `dev`,`age`,`gen`,`push`는 현재 `app.js`의 옵션 인덱스와 동일합니다(전체=`all`). 고객 단위 데이터(`customers`, `export`)와 데이터 변경(`snapshots/refresh`)만 `ADMIN_TOKEN`으로 보호합니다. 미인증 요청은 401이고, 서버 `ADMIN_TOKEN` 자체가 없으면 보호된 API가 503을 반환합니다.
+
+**AI 요청 한도:** GPT를 호출하는 3개 API(`ai/strategy`, `ai/chat`, `relations/analyze`)는 클라이언트 IP별로 묶어 **10분에 20회**(슬라이딩 윈도)까지 허용하고, 초과 시 429와 `Retry-After` 헤더, 한국어 안내 메시지를 반환합니다. `AI_RATE_LIMIT`(0이면 해제), `AI_RATE_WINDOW_SECONDS`로 조정합니다. 프록시 뒤에서는 `TRUST_PROXY_HEADERS=1`이면 `X-Forwarded-For` 첫 값을 IP로 씁니다(Vercel에서는 기본 켜짐). 한도는 프로세스 메모리 기준이라 워커·인스턴스마다 따로 셉니다. 비용 상한이 중요하면 OpenAI 대시보드의 사용 한도도 함께 설정하세요.
 
 ## 4. API 키 및 배포 보안
 
 - GPT API 키를 프론트엔드에 넣지 마세요. 서버의 환경변수로만 주입합니다.
 - `.env`, SQLite, backend 소스를 웹 정적 리소스로 제공하지 않습니다. `app.js`,`ai.js`,`data.js`만 명시적으로 제공합니다.
 - **주의:** 원본 `data.js`에 50,000명의 비식별 user_key와 고객별 특징이 포함되어 있습니다. **현재 버전은 해커톤 로컬·비공개 시연용**입니다. 공개 AWS URL에서 그대로 제공하면 안 됩니다. 실제 운영 시 브라우저의 고객 단위 데이터를 제거하고 모든 KPI/필터/CSV를 인증된 API로 전환해야 합니다.
+- AI 분석 API는 공개입니다. 누구나 호출할 수 있으므로 IP별 요청 한도 외에 OpenAI 계정의 월 사용 한도를 반드시 설정하세요.
 - 관리자 토큰은 브라우저 입력창 메모리에만 유지되고 새로고침 시 삭제됩니다. 공유/공개 환경에서는 정식 로그인(OIDC/IAM/Cognito) 및 권한별 분리를 사용하세요.
 - GPT 요청에는 고객 키를 전달하지 않고 집계 요약만 전달합니다. 저장된 추천에도 개별 고객 키는 없습니다.
 - GPT 연결 실패나 키 미설정 시 **데모 추천을 실제 AI 결과처럼 표시하지 않습니다**.
@@ -75,7 +80,7 @@ node --check ai.js
 pytest -q
 ```
 
-테스트는 KPI·타깃 원본 집계값, 날짜 및 기기 등 복합 필터, SQL 동일 기준 CSV, 인증, 재적재 중복 방지, GPT 키 미설정 오류 및 **GPT 모의 응답의 저장·대화 흐름**을 검증합니다. 실 GPT API 호출은 API 키/네트워크가 있어야 하며 이 패키지 내 자동 테스트에서 라이브 호출하지 않습니다.
+테스트는 KPI·타깃 원본 집계값, 날짜 및 기기 등 복합 필터, SQL 동일 기준 CSV, 인증(AI 분석 공개·고객 추출 보호), AI 요청 한도(429), 재적재 중복 방지, GPT 키 미설정 오류 및 **GPT 모의 응답의 저장·대화 흐름**을 검증합니다. 실 GPT API 호출은 API 키/네트워크가 있어야 하며 이 패키지 내 자동 테스트에서 라이브 호출하지 않습니다.
 
 
 ## 6. 지표 연관 지도 (`/insights`, React + Tailwind)
@@ -85,7 +90,7 @@ pytest -q
 - **숫자는 전부 서버 계산**(`backend/relations.py`): 지표 쌍마다 2×2 교차표, φ계수, Lift, 조건부 비율 차이(%p), χ² p값. 다중 비교는 본페로니 보정. 상호배타 쌍(같은 기기·연령대 등)은 정의상 연관이라 제외합니다.
 - **선 클릭** → 교차표·조건부 비율·통계 근거·해석 한계. 점 클릭 → 그 지표의 연관만 남김. Esc로 해제.
 - **뷰 4종**: 네트워크 / 방사형 / 매트릭스 / 순위. 최소 |φ|, 유의성, 결과 지표 연결 필터.
-- **AI 팩트 분석**(`POST /api/relations/analyze`, ADMIN_TOKEN 필요): GPT가 서버가 계산한 연관 중 핵심 사실을 고르고, 사실별 시각화 형태(막대·도넛·게이지·도트·모자이크)와 전체 추천 뷰를 정합니다. 서버는 **문장 속 모든 숫자가 원본 값의 반올림인지 대조**하고 **인과·추정 표현(때문, 원인, 영향, 가능성 등)을 차단**해, 통과하지 못한 문장은 폐기하고 폐기 사유를 화면에 보여줍니다.
+- **AI 팩트 분석**(`POST /api/relations/analyze`, 토큰 불필요 · AI 요청 한도 적용): GPT가 서버가 계산한 연관 중 핵심 사실을 고르고, 사실별 시각화 형태(막대·도넛·게이지·도트·모자이크)와 전체 추천 뷰를 정합니다. 서버는 **문장 속 모든 숫자가 원본 값의 반올림인지 대조**하고 **인과·추정 표현(때문, 원인, 영향, 가능성 등)을 차단**해, 통과하지 못한 문장은 폐기하고 폐기 사유를 화면에 보여줍니다.
 - 연관은 동시 발생의 정도이며 인과가 아닙니다. 행동(D0~D30)·시청(D0~D60)은 결제 전후 순서를 구분하지 않으므로, 해당 쌍에는 한계가 자동 표기됩니다.
 
 프론트 수정 시:

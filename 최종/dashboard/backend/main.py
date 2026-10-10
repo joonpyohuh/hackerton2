@@ -2,13 +2,17 @@
 import csv
 import io
 import json
+import math
 import secrets
 import sqlite3
+import threading
+import time
+from collections import deque
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
-from fastapi import Depends, FastAPI, HTTPException, Query, Header
+from fastapi import Depends, FastAPI, HTTPException, Query, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, FileResponse
 from pydantic import BaseModel, Field
@@ -45,6 +49,42 @@ def authorized(token:str|None=Header(default=None,alias='X-Admin-Token')):
     if not token or not secrets.compare_digest(token,settings.ADMIN_TOKEN):
         raise HTTPException(401,'관리자 인증 토큰이 필요합니다')
     return True
+
+class SlidingWindowLimiter:
+    """In-memory, per-process sliding window. Not shared across workers/instances."""
+    def __init__(self,clock=time.monotonic):
+        self._hits:dict[str,deque[float]]={}
+        self._lock=threading.Lock()
+        self._clock=clock
+    def hit(self,key:str,limit:int,window:float)->int|None:
+        """Record a hit; return retry-after seconds if over the limit, else None."""
+        now=self._clock()
+        with self._lock:
+            q=self._hits.setdefault(key,deque())
+            while q and now-q[0]>=window: q.popleft()
+            if len(q)>=limit: return max(1,math.ceil(window-(now-q[0])))
+            q.append(now)
+            if len(self._hits)>4096:
+                for k in [k for k,v in self._hits.items() if not v or now-v[-1]>=window]: del self._hits[k]
+            return None
+    def reset(self):
+        with self._lock: self._hits.clear()
+
+ai_limiter=SlidingWindowLimiter()
+
+def client_ip(request:Request)->str:
+    if settings.TRUST_PROXY_HEADERS:
+        fwd=request.headers.get('x-forwarded-for','').split(',')[0].strip()
+        if fwd: return fwd
+    return request.client.host if request.client else 'unknown'
+
+def ai_rate_limited(request:Request):
+    if settings.AI_RATE_LIMIT<=0: return
+    retry=ai_limiter.hit(client_ip(request),settings.AI_RATE_LIMIT,settings.AI_RATE_WINDOW_SECONDS)
+    if retry is not None:
+        span=lambda s:f'{math.ceil(s/60)}분' if s>=60 else f'{s}초'
+        raise HTTPException(429,f'AI 분석 요청 한도({span(settings.AI_RATE_WINDOW_SECONDS)}에 {settings.AI_RATE_LIMIT}회)를 넘었습니다. 약 {span(retry)} 후 다시 시도해 주세요.',
+                            headers={'Retry-After':str(retry)})
 
 def make_filters(**kwargs):return {k:v for k,v in kwargs.items() if v is not None}
 
@@ -107,7 +147,8 @@ def export(target_id:str,from_date:str|None=None,to_date:str|None=None,dev:str='
            headers={'Content-Disposition':f'attachment; filename="{target_id}_{"push" if push_only else "all"}.csv"','Cache-Control':'no-store'})
     return safely(go)
 
-@app.post('/api/ai/strategy',dependencies=[Depends(authorized)])
+# AI analysis is aggregate-only (no customer rows) → public, but rate-limited per client IP.
+@app.post('/api/ai/strategy',dependencies=[Depends(ai_rate_limited)])
 def strategy(req:StrategyRequest):
     def go(c):
         s=analysis.summary(c,req.target_id,req.filters.model_dump(exclude_none=True))
@@ -123,7 +164,7 @@ def strategy(req:StrategyRequest):
         c.commit()
         return {'id':cur.lastrowid,'created_at':now,'snapshot_id':s['snapshot_id'],'summary':s,'strategy':result,'model':settings.OPENAI_MODEL}
 
-@app.post('/api/ai/chat',dependencies=[Depends(authorized)])
+@app.post('/api/ai/chat',dependencies=[Depends(ai_rate_limited)])
 def chat(req:ChatRequest):
     s=safely(lambda c:analysis.summary(c,req.target_id,req.filters.model_dump(exclude_none=True)))
     try: response=ai.call(ai.chat_prompt(s,req.history,req.message),structured=False)
@@ -131,7 +172,7 @@ def chat(req:ChatRequest):
     except ai.AICallFailed as ex: raise HTTPException(502,str(ex))
     return {'reply':response,'snapshot_id':s['snapshot_id'],'model':settings.OPENAI_MODEL}
 
-@app.get('/api/recommendations',dependencies=[Depends(authorized)])
+@app.get('/api/recommendations')
 def recommendations(target_id:str|None=None,limit:int=Query(20,ge=1,le=100)):
     if target_id is not None and target_id not in analysis.TARGETS:raise HTTPException(400,'Unknown target')
     def go(c):
@@ -155,10 +196,10 @@ def relation_facts(from_date:str|None=None,to_date:str|None=None,dev:str='all',a
 class RelationRequest(BaseModel):
     filters: Filters=Field(default_factory=Filters)
 
-@app.post('/api/relations/analyze')
+@app.post('/api/relations/analyze',dependencies=[Depends(ai_rate_limited)])
 def relation_analyze(req:RelationRequest):
     # Aggregate-only (no customer rows), same public tier as /api/relations.
-    # Costs an OpenAI call per request — revisit if this server is ever publicly reachable.
+    # Costs an OpenAI call per request → shares the per-IP AI rate limit.
     facts=safely(lambda c:relations.compute(c,req.filters.model_dump(exclude_none=True)))
     prompt,pool=relations.analysis_prompt(facts)
     if not pool: raise HTTPException(422,'현재 필터에서 통계적으로 유의한 연관이 없습니다. 필터 범위를 넓혀 주세요.')

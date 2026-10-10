@@ -129,6 +129,7 @@ export function createStructuralValidator(options: { catalog: SchemaCatalog; all
       // ── 테이블·스키마 검사 ──
       const sources = new Map<string, Source>();
       const referencedTables: ReadonlySet<string>[] = [];
+      const tableNames = new Set<string>();
       for (const alias of derivedAliases) sources.set(alias, DERIVED);
       for (const r of ranges) {
         const visibleName = r.alias ?? r.rel;
@@ -153,6 +154,7 @@ export function createStructuralValidator(options: { catalog: SchemaCatalog; all
         sources.set(visibleName, columns);
         if (r.schema) sources.set(`${r.schema}.${r.rel}`, columns);
         referencedTables.push(columns);
+        tableNames.add(`${schema}.${r.rel}`);
       }
 
       // ── 컬럼 검사 (파생 테이블·CTE 출처는 DB 실행 단계에서 확인) ──
@@ -182,7 +184,7 @@ export function createStructuralValidator(options: { catalog: SchemaCatalog; all
 
       if (errors.length) return fail(errors);
       // 행 수 제한은 실행기(05단계)가 강제한다. 여기서는 끝의 세미콜론·공백만 정리한다.
-      return { passed: true, errors: [], normalizedSql: sql.replace(/[\s;]+$/, "") };
+      return { passed: true, errors: [], normalizedSql: sql.replace(/[\s;]+$/, ""), referencedTables: [...tableNames] };
     },
   };
 }

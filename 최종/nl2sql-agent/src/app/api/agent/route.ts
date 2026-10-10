@@ -39,7 +39,7 @@ export async function POST(req: Request) {
   }
   const parsed = agentRequestSchema.safeParse(body);
   if (!parsed.success) return errorJson(parsed.error.issues[0]?.message ?? "잘못된 요청입니다.", 400);
-  const { question } = parsed.data;
+  const { question, history } = parsed.data;
 
   let env;
   try {
@@ -52,5 +52,5 @@ export async function POST(req: Request) {
 
   const live = buildLiveAgent(env);
   if (!live.ok) return errorJson(`live 모드를 실행할 수 없습니다. 준비되지 않은 항목: ${live.missing.join(", ")}`, 501);
-  return streamEvents(runAgentPipeline(question, live.deps, live.config, req.signal), req.signal);
+  return streamEvents(runAgentPipeline(question, live.deps, live.config, req.signal, history), req.signal);
 }

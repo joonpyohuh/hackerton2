@@ -79,7 +79,9 @@ export class SemanticStore {
         approved_revision=CASE WHEN $2 THEN (SELECT value FROM semantic.revision WHERE singleton=true) ELSE NULL END,
         approved_at=CASE WHEN $2 THEN now() ELSE NULL END
         WHERE request_id=$1 AND log->>'finalStatus'='passed' AND log->>'finalSql' IS NOT NULL
-          AND (NOT $2 OR log->>'definitionVersion' = 'semantic.v' || (SELECT value::text FROM semantic.revision WHERE singleton=true))`,
+          AND (NOT $2 OR log->>'definitionVersion' = 'semantic.v' || (SELECT value::text FROM semantic.revision WHERE singleton=true))
+          -- 후보(비공식) 정의로 계산한 결과는 확정 지식으로 승인하지 않는다. 정의를 공식화한 뒤 다시 실행해야 한다.
+          AND (NOT $2 OR coalesce(jsonb_array_length(log->'resolution'->'candidateIds'), 0) = 0)`,
       [requestId, approved],
     );
     return Boolean(r.rowCount);

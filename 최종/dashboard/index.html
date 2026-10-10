@@ -209,26 +209,110 @@ footer { padding: 48px 0 64px; font-size: 11px; color: var(--muted); }
 .ai-toolbar {display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin:24px 0 0;padding:16px 20px;background:var(--accent-wash);border:1px solid var(--hair);}
 .ai-toolbar strong {font-size:13px}.ai-toolbar small {display:block;color:var(--muted);font-size:11px}
 .ai-events {display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
-.ai-target-chip {font:inherit;text-align:left;background:var(--surface);color:var(--ink);border:1px solid var(--hair);padding:9px 12px;cursor:pointer;font-size:11px}
+:root {--ai-ease:cubic-bezier(.2,.7,.2,1);--ai-fast:160ms;--ai-dur:240ms}
+.ai-target-chip {font:inherit;text-align:left;background:var(--surface);color:var(--ink);border:1px solid var(--hair);padding:9px 12px;cursor:pointer;font-size:11px;transition:border-color var(--ai-fast) var(--ai-ease),color var(--ai-fast) var(--ai-ease)}
 .ai-target-chip:hover {border-color:var(--accent);color:var(--accent)}
-.ai-newbtn {font:inherit;border:1px solid var(--ink);background:var(--ink);color:var(--bg);padding:8px 12px;cursor:pointer;font-size:12px}
-.ai-dock {position:fixed;right:24px;bottom:24px;background:var(--ink);color:var(--bg);border:0;z-index:100;padding:13px 18px;font:600 13px inherit;cursor:pointer;box-shadow:0 5px 20px #0002}
-.ai-panel {position:fixed;right:0;top:0;height:100dvh;width:min(475px,100vw);background:var(--surface);border-left:1px solid var(--hair);z-index:101;box-shadow:-12px 0 50px #0002;overflow-y:auto;padding:25px;transform:translateX(105%);transition:transform .2s ease}
-.ai-panel.open {transform:translateX(0)}.ai-panel header {display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid var(--hair);padding-bottom:16px;margin-bottom:16px}
-.ai-panel h2 {font-size:19px}.ai-panel h3 {font-size:13px;margin:17px 0 9px}
-.ai-panel .ai-close {border:1px solid var(--hair);background:transparent;color:var(--ink);font-size:20px;cursor:pointer;padding:2px 9px}
-.ai-panel select,.ai-panel input,.ai-panel textarea{width:100%;background:var(--bg);border:1px solid var(--hair);color:var(--ink);padding:9px;font-size:12px;margin-bottom:9px;font-family:inherit}
+.ai-newbtn {font:inherit;border:1px solid var(--ink);background:var(--ink);color:var(--bg);padding:8px 12px;cursor:pointer;font-size:12px;transition:opacity var(--ai-fast) var(--ai-ease),transform var(--ai-fast) var(--ai-ease)}
+.ai-newbtn:hover {opacity:.86}.ai-newbtn:active {transform:translateY(1px)}
+.ai-dock {position:fixed;right:24px;bottom:24px;background:var(--ink);color:var(--bg);border:0;z-index:100;padding:13px 18px;font:600 13px inherit;cursor:pointer;box-shadow:0 5px 20px #0002;transition:transform var(--ai-fast) var(--ai-ease),opacity var(--ai-fast) var(--ai-ease)}
+.ai-dock:hover {transform:translateY(-2px)}.ai-dock:active {transform:translateY(0)}
+.ai-dock[aria-expanded="true"] {opacity:0;transform:translateY(8px);pointer-events:none}
+
+/* panel: fade + slide, hidden from tab order when closed */
+.ai-panel {position:fixed;right:0;top:0;height:100dvh;width:min(475px,100vw);background:var(--surface);border-left:1px solid var(--hair);z-index:101;box-shadow:-12px 0 50px #0002;overflow-y:auto;overscroll-behavior:contain;padding:25px;
+  opacity:0;transform:translateX(32px);visibility:hidden;
+  transition:opacity var(--ai-dur) var(--ai-ease),transform var(--ai-dur) var(--ai-ease),visibility 0s linear var(--ai-dur)}
+.ai-panel.open {opacity:1;transform:translateX(0);visibility:visible;transition-delay:0s}
+.ai-panel header {display:flex;justify-content:space-between;align-items:flex-start;gap:16px;border-bottom:1px solid var(--hair);padding-bottom:16px;margin-bottom:16px}
+.ai-panel h2 {font-size:19px;letter-spacing:-0.03em;line-height:1.3;margin-top:4px}
+.ai-sub {font-size:11px;color:var(--muted);line-height:1.6;margin-top:4px}
+.ai-panel .ai-close {border:1px solid var(--hair);background:transparent;color:var(--ink);font-size:20px;line-height:1.2;cursor:pointer;padding:2px 9px;transition:border-color var(--ai-fast) var(--ai-ease),transform var(--ai-fast) var(--ai-ease)}
+.ai-panel .ai-close:hover {border-color:var(--ink)}.ai-panel .ai-close:active {transform:scale(.94)}
+.ai-panel :focus-visible {outline:1px solid var(--accent);outline-offset:2px}
+.ai-panel select,.ai-panel input,.ai-panel textarea{width:100%;background:var(--bg);border:1px solid var(--hair);color:var(--ink);padding:9px;font-size:12px;margin-bottom:9px;font-family:inherit;line-height:1.6;transition:border-color var(--ai-fast) var(--ai-ease)}
+.ai-panel select:hover,.ai-panel input:hover,.ai-panel textarea:hover {border-color:var(--axis)}
+.ai-panel select:focus,.ai-panel input:focus,.ai-panel textarea:focus {outline:none;border-color:var(--ink)}
+.ai-panel select:disabled,.ai-panel textarea:disabled {opacity:.6;cursor:wait}
 .ai-panel textarea {min-height:74px;resize:vertical}
 .ai-panel label {display:block;font-size:11px;color:var(--ink-2);margin:7px 0}
-.ai-panel button.ai-action {font:inherit;font-size:12px;background:var(--ink);color:var(--bg);border:1px solid var(--ink);padding:9px 12px;cursor:pointer;margin:4px 5px 4px 0}
-.ai-panel button.ai-action:disabled {opacity:.5;cursor:wait}.ai-panel button.secondary {background:transparent;color:var(--ink)}
-.ai-status {font-size:11px;color:var(--ink-2);padding:8px 10px;background:var(--bg);margin:10px 0;word-break:break-word}
-.ai-status.error {color:#bf3a38}.ai-result {max-height:460px;overflow-y:auto;font-size:12px;white-space:pre-wrap;word-break:break-word}
-.ai-result-head {font-size:15px;font-weight:700;color:var(--accent);margin:12px 0}.ai-result-head small {display:block;color:var(--muted);font-weight:400;font-size:10px}
-.ai-result-row {border-bottom:1px solid var(--hair);padding:10px 0}.ai-result-row strong {color:var(--ink)}.ai-result-row p {color:var(--ink-2);margin:4px 0}
-.ai-answer {padding:10px;min-height:45px;background:var(--bg);white-space:pre-wrap;font-size:12px;line-height:1.7}
-.ai-history-item {padding:9px 0;border-bottom:1px solid var(--hair);font-size:11px}.ai-history-item small {display:block;color:var(--muted);margin-top:4px}
-.ai-safe {font-size:10px;color:var(--muted);line-height:1.6;margin-top:12px}
+.ai-vh {position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* numbered steps — same rhythm as section numbers (.sh .no) */
+.ai-step {display:flex;align-items:baseline;gap:10px;margin:26px 0 10px;padding-top:14px;border-top:1px solid var(--hair)}
+.ai-step-split {justify-content:space-between}.ai-step-split > div {display:flex;align-items:baseline;gap:10px}
+.ai-no {font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;letter-spacing:.06em}
+.ai-panel h3 {font-size:13px;font-weight:700;letter-spacing:-0.02em;margin:0}
+.ai-meta {font-size:10px;color:var(--muted);margin:8px 0}
+.ai-summary {font-size:12px;line-height:1.6;color:var(--ink-2);min-height:19px}
+.ai-row {display:flex;align-items:center;gap:14px;flex-wrap:wrap}.ai-row-end {justify-content:space-between}
+.ai-hint {font-size:10px;color:var(--muted);letter-spacing:0}
+
+/* buttons */
+.ai-panel button.ai-action {font:inherit;font-size:12px;background:var(--ink);color:var(--bg);border:1px solid var(--ink);padding:9px 14px;cursor:pointer;margin:4px 0;
+  transition:opacity var(--ai-fast) var(--ai-ease),transform var(--ai-fast) var(--ai-ease),background-color var(--ai-fast) var(--ai-ease),color var(--ai-fast) var(--ai-ease)}
+.ai-panel button.ai-action:hover:not(:disabled) {opacity:.86}
+.ai-panel button.ai-action:active:not(:disabled) {transform:translateY(1px)}
+.ai-panel button.ai-action:disabled {opacity:.45;cursor:wait}
+.ai-panel button.ai-primary {min-width:132px;padding:10px 18px;font-weight:600}
+.ai-panel button.secondary {background:transparent;color:var(--ink)}
+.ai-panel button.secondary:hover:not(:disabled) {background:var(--ink);color:var(--bg);opacity:1}
+.ai-link {font:inherit;font-size:12px;background:none;border:0;padding:2px 0;color:var(--ink-2);cursor:pointer;text-decoration:underline;text-decoration-color:var(--axis);text-underline-offset:3px;transition:color var(--ai-fast) var(--ai-ease)}
+.ai-link:hover {color:var(--ink)}.ai-link:disabled {opacity:.45;cursor:wait}
+
+/* status line */
+.ai-status {font-size:11px;color:var(--ink-2);padding:8px 10px;background:var(--bg);margin:10px 0;word-break:break-word;border-left:2px solid var(--hair);transition:border-color var(--ai-fast) var(--ai-ease)}
+.ai-status.busy {border-left-color:var(--accent)}
+.ai-status.notice {color:var(--ink);border-left-color:var(--accent)}
+.ai-status.error {color:#bf3a38;border-left-color:#bf3a38}
+
+/* results */
+.ai-result {max-height:460px;overflow-y:auto;font-size:12px;white-space:pre-wrap;word-break:break-word;margin-top:8px}
+.ai-empty {font-size:11px;color:var(--muted);padding:10px 0;white-space:normal}
+.ai-result-head {font-size:15px;font-weight:700;letter-spacing:-0.02em;line-height:1.45;color:var(--accent);margin:12px 0}.ai-result-head small {display:block;color:var(--muted);font-weight:400;font-size:10px;letter-spacing:0;margin-top:2px}
+.ai-result-row {border-bottom:1px solid var(--hair);padding:10px 0}.ai-result-row strong {color:var(--ink)}.ai-result-row p {color:var(--ink-2);margin:4px 0;line-height:1.7}
+.ai-notice {font-size:12px;color:var(--ink);padding:10px 12px;background:var(--bg);border-left:2px solid var(--accent);white-space:normal;line-height:1.6}
+
+/* chat thread */
+.ai-thread {display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
+.ai-thread:empty {display:none}
+.ai-msg {font-size:12px;line-height:1.7;white-space:pre-wrap;word-break:break-word;padding:9px 11px}
+.ai-msg.user {align-self:flex-end;max-width:85%;background:var(--ink);color:var(--bg)}
+.ai-msg.assistant {background:var(--bg);color:var(--ink);border:1px solid var(--hair)}
+.ai-msg.error {background:var(--bg);color:#bf3a38;border:1px solid var(--hair)}
+.ai-msg.notice {background:var(--bg);color:var(--ink);border-left:2px solid var(--accent)}
+
+/* history */
+.ai-history {display:flex;flex-direction:column}
+.ai-history-item {font:inherit;text-align:left;background:none;border:0;border-bottom:1px solid var(--hair);color:var(--ink);padding:9px 0;font-size:11px;cursor:pointer;transition:color var(--ai-fast) var(--ai-ease)}
+.ai-history-item:hover {color:var(--accent)}
+.ai-history-item small {display:block;color:var(--muted);margin-top:4px}
+
+/* admin (collapsed) */
+.ai-admin {margin-top:28px;padding-top:14px;border-top:1px solid var(--hair)}
+.ai-admin summary {font-size:12px;color:var(--ink-2)}
+.ai-admin[open] > :not(summary) {animation:aiIn var(--ai-dur) var(--ai-ease) both}
+.ai-admin-note {font-size:11px;color:var(--muted);line-height:1.6;margin:10px 0 4px}
+.ai-safe {font-size:10px;color:var(--muted);line-height:1.6;margin-top:16px}
+
+/* motion: entry, loading */
+@keyframes aiIn {from {opacity:0;transform:translateY(6px)} to {opacity:1;transform:none}}
+@keyframes aiPulse {0%,100% {opacity:.35} 50% {opacity:1}}
+.ai-in {animation:aiIn var(--ai-dur) var(--ai-ease) both;animation-delay:calc(var(--i,0) * 28ms)}
+.ai-skeleton {display:grid;gap:9px;padding:14px 0}
+.ai-skeleton i {display:block;height:9px;background:var(--hair);animation:aiPulse 1.4s ease-in-out infinite}
+.ai-skeleton i:nth-child(1) {width:62%;height:13px}
+.ai-skeleton i:nth-child(2) {width:100%;animation-delay:.12s}
+.ai-skeleton i:nth-child(3) {width:92%;animation-delay:.24s}
+.ai-skeleton i:nth-child(4) {width:78%;animation-delay:.36s}
+.ai-typing {display:inline-flex;gap:4px;padding:12px 11px;align-self:flex-start;background:var(--bg);border:1px solid var(--hair)}
+.ai-typing i {width:4px;height:4px;border-radius:50%;background:var(--muted);animation:aiPulse 1s ease-in-out infinite}
+.ai-typing i:nth-child(2) {animation-delay:.15s}.ai-typing i:nth-child(3) {animation-delay:.3s}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-panel,.ai-panel *,.ai-dock,.ai-newbtn,.ai-target-chip {transition-duration:1ms!important;animation-duration:1ms!important;animation-iteration-count:1!important;animation-delay:0s!important}
+  .ai-panel {transform:none}
+  .ai-skeleton i,.ai-typing i {opacity:.6}
+}
 @media(max-width:520px){.ai-dock{right:12px;bottom:12px}.ai-panel{padding:18px}}
 </style>
 </head>
@@ -339,26 +423,40 @@ footer { padding: 48px 0 64px; font-size: 11px; color: var(--muted); }
 
 <button id="aiDock" class="ai-dock" type="button" aria-expanded="false" aria-controls="aiPanel">✦ GPT 마케팅 AI</button>
 <aside id="aiPanel" class="ai-panel" aria-label="GPT 마케팅 전략 어시스턴트" aria-hidden="true">
-  <header><div><div class="eyebrow">AI MARKETING STRATEGIST</div><h2>GPT 전략 어시스턴트</h2><p style="font-size:11px;color:var(--muted)">선택한 타깃의 SQL 분석 데이터를 해석합니다.</p></div><button id="aiClose" class="ai-close" aria-label="패널 닫기" type="button">×</button></header>
+  <header><div><div class="eyebrow">AI MARKETING STRATEGIST</div><h2>GPT 전략 어시스턴트</h2><p class="ai-sub">타깃을 고르고 분석을 시작하면, 현재 필터의 SQL 집계를 GPT가 해석합니다.</p></div><button id="aiClose" class="ai-close" aria-label="패널 닫기" type="button">×</button></header>
   <div id="aiStatus" class="ai-status" role="status">연결 확인 중…</div>
-  <div id="aiUpdated" style="font-size:10px;color:var(--muted);margin:8px 0"></div>
-  <div id="aiSummary" style="font-size:12px;line-height:1.6;margin:10px 0"></div>
-  <label for="aiToken">관리자 토큰 (이 브라우저 메모리에만 보관, 새로고침 시 소멸)</label>
-  <input id="aiToken" type="password" autocomplete="off" placeholder=".env 파일의 ADMIN_TOKEN" />
-  <label for="aiTarget">마케팅 타깃</label>
+  <div id="aiUpdated" class="ai-meta"></div>
+
+  <div class="ai-step"><span class="ai-no">01</span><h3>타깃 선택</h3></div>
+  <label for="aiTarget" class="ai-vh">마케팅 타깃</label>
   <select id="aiTarget"><option value="T1">T1 · 이용권 관심 후 미결제</option><option value="T2">T2 · 결제 후 첫 시청 실패</option><option value="T3">T3 · 초기 시청 후 유지 실패</option></select>
-  <button id="aiGenerate" class="ai-action" type="button">GPT 전략 생성 · 저장</button>
-  <button id="aiSql" class="ai-action secondary" type="button">실행 SQL 조회</button>
-  <div class="ai-result" id="aiResult" aria-live="polite"><div class="ai-safe">OpenAI 키가 없다면 라이브 추천은 동작하지 않습니다. 임의의 AI 결과를 만들지 않습니다.</div></div>
-  <h3>GPT에게 추가 질문</h3>
-  <textarea id="aiQuestion" placeholder="예: 이 타깃에게 효과를 검증할 A/B 테스트를 설계해줘"></textarea>
-  <button id="aiAsk" class="ai-action" type="button">질문 보내기</button>
-  <div id="aiAnswer" class="ai-answer" aria-live="polite">타깃을 선택하고 질문을 입력하세요.</div>
-  <h3>저장된 전략</h3><button id="aiReload" class="ai-action secondary" type="button">추천 이력 불러오기</button>
-  <div id="aiHistory" class="ai-history-item">관리자 토큰 입력 후 조회 가능합니다.</div>
-  <h3>데이터 스냅샷</h3><p style="font-size:11px;color:var(--ink-2)">새 데이터로 build_data.py를 실행한 뒤, 서버의 data.js를 재적재하세요.</p>
-  <button id="aiRefreshData" class="ai-action secondary" type="button">서버 data.js 재적재</button>
-  <p class="ai-safe">익명화 이력 데이터 시연용. 추천은 마케팅 담당자 승인용이며 자동 발송하지 않습니다. 키·고객 목록을 GPT로 보내지 않습니다.</p>
+  <div id="aiSummary" class="ai-summary"></div>
+
+  <div class="ai-step"><span class="ai-no">02</span><h3>전략 분석</h3></div>
+  <div class="ai-row">
+    <button id="aiGenerate" class="ai-action ai-primary" type="button">분석 시작</button>
+    <button id="aiSql" class="ai-link" type="button">실행 SQL 보기</button>
+  </div>
+  <div class="ai-result" id="aiResult" aria-live="polite"><p class="ai-empty">분석 결과가 여기에 표시됩니다. 결과는 자동 저장됩니다.</p></div>
+
+  <div class="ai-step"><span class="ai-no">03</span><h3>추가 질문</h3></div>
+  <div id="aiAnswer" class="ai-thread" aria-live="polite"></div>
+  <label for="aiQuestion" class="ai-vh">GPT에게 질문</label>
+  <textarea id="aiQuestion" rows="3" placeholder="예: 이 타깃에게 효과를 검증할 A/B 테스트를 설계해줘"></textarea>
+  <div class="ai-row ai-row-end"><small class="ai-hint">Enter 전송 · Shift+Enter 줄바꿈</small><button id="aiAsk" class="ai-action" type="button">질문 보내기</button></div>
+
+  <div class="ai-step ai-step-split"><div><span class="ai-no">04</span><h3>저장된 전략</h3></div><button id="aiReload" class="ai-link" type="button">새로고침</button></div>
+  <div id="aiHistory" class="ai-history"><p class="ai-empty">불러오는 중…</p></div>
+
+  <details class="ai-admin" id="aiAdmin">
+    <summary>관리자 기능</summary>
+    <p class="ai-admin-note">고객 CSV 추출과 데이터 재적재에만 필요합니다. 분석·질문에는 필요 없습니다.</p>
+    <label for="aiToken">관리자 토큰 (이 브라우저 메모리에만 보관, 새로고침 시 소멸)</label>
+    <input id="aiToken" type="password" autocomplete="off" placeholder=".env 파일의 ADMIN_TOKEN" />
+    <p class="ai-admin-note">새 데이터로 build_data.py를 실행한 뒤, 서버의 data.js를 재적재하세요.</p>
+    <button id="aiRefreshData" class="ai-action secondary" type="button">서버 data.js 재적재</button>
+  </details>
+  <p class="ai-safe">익명화 이력 데이터 시연용. 추천은 마케팅 담당자 승인용이며 자동 발송하지 않습니다. 키·고객 목록을 GPT로 보내지 않습니다. OpenAI 키가 없으면 임의의 AI 결과를 만들지 않습니다.</p>
 </aside>
 <script src="data.js"></script>
 <script src="app.js"></script>

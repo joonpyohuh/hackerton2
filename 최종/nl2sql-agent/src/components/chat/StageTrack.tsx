@@ -18,12 +18,15 @@ const fromCheck = (c: CheckResult | undefined): StepState =>
 function stepStates(turn: Turn): StepState[] {
   if (turn.stage) {
     const current = PIPELINE_STEPS.findIndex((s) => s.stage === turn.stage);
-    if (current === -1) return PIPELINE_STEPS.map((_, i) => (i === 0 ? "done" : "pending")); // correcting
+    if (current === -1) return PIPELINE_STEPS.map((_, i) => (i <= 1 ? "done" : "pending")); // correcting
     return PIPELINE_STEPS.map((_, i) => (i < current ? "done" : i === current ? "active" : "pending"));
   }
   const last = turn.attempts.at(-1);
+  const resolved = turn.resolution?.status === "resolved" || turn.resolution?.status === "no_metric";
   return [
-    turn.response || turn.attempts.length ? "done" : "pending",
+    // 지표 해석에서 멈춘 경우(정의 없음·모호·계산 불가)는 실패가 아니라 확인 요청이므로 강조색으로만 표시한다.
+    turn.resolution ? (resolved ? "done" : "active") : turn.response ? "done" : "pending",
+    turn.context || turn.attempts.length ? "done" : "pending",
     last?.sql ? "done" : "pending",
     fromCheck(last?.structural),
     fromCheck(last?.semantic),
@@ -37,7 +40,7 @@ export function StageTrack({ turn }: { turn: Turn }) {
 
   return (
     <div>
-      <ol className="grid grid-cols-5 gap-x-2 sm:gap-x-3">
+      <ol className="grid grid-cols-6 gap-x-2 sm:gap-x-3">
         {PIPELINE_STEPS.map((step, i) => (
           <li key={step.stage} className={`border-t-2 pt-2 transition-colors duration-300 ${STEP_STYLE[states[i]]}`}>
             <span className="block font-mono text-[10.5px] tracking-[0.08em] opacity-70">0{i + 1}</span>

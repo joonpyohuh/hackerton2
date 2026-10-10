@@ -1,15 +1,18 @@
 import { describe, expect, it, vi } from "vitest";
-import { agentEventSchema, type AgentEvent, type AgentResponse } from "@/lib/agent/contract";
+import { agentEventSchema, type AgentEvent, type AgentResponse, type ConversationTurn, type Resolution } from "@/lib/agent/contract";
+import { SEED_DEFINITIONS, type StoredDefinition } from "@/server/semantic/definitions";
 import { StageError } from "./errors";
 import { InMemoryRunLogger } from "./logger";
 import { runAgentPipeline } from "./pipeline";
 import type {
+  ContextRetriever,
   ExecutionOutput,
   GenerationInput,
   GenerationOutput,
   PipelineConfig,
   PipelineDeps,
   RetrievedContext,
+  SemanticResolver,
   SemanticVerdict,
   StructuralResult,
 } from "./types";
@@ -36,6 +39,7 @@ const gen = (sql: string | null, extra: Partial<GenerationOutput> = {}): Generat
   assumptions: [],
   needsClarification: false,
   clarificationQuestion: null,
+  definition: { metricIds: [], definitionRefs: [], formula: "", filters: [], grain: null, unapprovedAssumptions: [], candidateIds: [] },
   usage: usage("generation"),
   ...extra,
 });
@@ -48,7 +52,32 @@ const verdict = (score: number, extra: Partial<SemanticVerdict> = {}): SemanticV
   suggestions: [],
   missingDefinitions: [],
   needsClarification: false,
+  definitionMatch: true,
+  grainMatch: true,
+  unapprovedAssumptions: [],
   usage: usage("verification"),
+  ...extra,
+});
+
+/** 기본 판정: 지표 없이 원천 조회 (기존 루프 테스트가 판정 단계의 영향을 받지 않게 한다) */
+const resolution = (extra: Partial<Resolution> = {}): Resolution => ({
+  status: "no_metric",
+  standaloneQuestion: "질문",
+  requestedMetric: null,
+  metricIds: [],
+  supportIds: [],
+  filters: [],
+  period: null,
+  grain: null,
+  relations: [],
+  unspecified: [],
+  confirmed: [],
+  assumptions: [],
+  options: [],
+  reason: null,
+  clarificationQuestion: null,
+  concepts: [],
+  candidateIds: [],
   ...extra,
 });
 const rows = (n: number): ExecutionOutput => ({
@@ -85,6 +114,7 @@ function genInput(fn: { mock: { calls: [GenerationInput, AbortSignal][] } }, n: 
 }
 
 function setup(over: {
+  resolution?: Resolution;
   context?: RetrievedContext;
   generations?: (GenerationOutput | Error)[];
   structural?: StructuralResult[];
@@ -96,8 +126,11 @@ function setup(over: {
   const validate = script<StructuralResult, [string]>(over.structural ?? [ok]);
   const verify = script<SemanticVerdict, [unknown, AbortSignal]>(over.verdicts ?? [verdict(95)]);
   const execute = script<ExecutionOutput, [string, AbortSignal]>(over.executions ?? [rows(2)]);
+  const resolve = vi.fn<SemanticResolver["resolve"]>(async () => ({ resolution: over.resolution ?? resolution(), usage: null }));
+  const retrieve = vi.fn<ContextRetriever["retrieve"]>(async () => over.context ?? CONTEXT);
   const deps: PipelineDeps = {
-    retriever: { retrieve: async () => over.context ?? CONTEXT },
+    resolver: { resolve },
+    retriever: { retrieve },
     generator: { generate },
     structural: { validate },
     verifier: { verify },
@@ -115,12 +148,12 @@ function setup(over: {
     logger,
     newId: () => "req-test",
   };
-  return { deps, logger, generate, validate, verify, execute };
+  return { deps, logger, generate, validate, verify, execute, resolve, retrieve };
 }
 
-async function run(deps: PipelineDeps, config = CONFIG, signal = new AbortController().signal) {
+async function run(deps: PipelineDeps, config = CONFIG, signal = new AbortController().signal, question = "질문", history: ConversationTurn[] = []) {
   const events: AgentEvent[] = [];
-  for await (const e of runAgentPipeline("질문", deps, config, signal)) events.push(e);
+  for await (const e of runAgentPipeline(question, deps, config, signal, history)) events.push(e);
   for (const e of events) expect(agentEventSchema.safeParse(e).success).toBe(true);
   const last = events.at(-1);
   if (last?.type !== "final") throw new Error("final 이벤트 없음");
@@ -255,5 +288,171 @@ describe("runAgentPipeline", () => {
     expect((await run(deps)).response.status).toBe("passed");
     expect(spy).toHaveBeenCalled();
     spy.mockRestore();
+  });
+});
+
+
+// ── 회귀: Semantic Resolver · 대화 상태 · 정의 준수 검사 ──
+const DEFS: StoredDefinition[] = SEED_DEFINITIONS.map((d) => ({ ...d, version: 4 }));
+const def = (id: string) => DEFS.find((d) => d.id === id)!;
+const PLAN_CONTEXT: RetrievedContext = {
+  ...CONTEXT,
+  sources: ["analytics.payment_fact"],
+  definitions: [def("first_payment_customer_n"), def("plan")],
+};
+const FIRST_PAYERS = `SELECT p.product_code, p.product_name, COUNT(DISTINCT p.user_key) AS first_payers
+  FROM analytics.payment_fact p WHERE p.payment_order = 1 AND p.relative_signup_day BETWEEN 0 AND 30
+  GROUP BY p.product_code, p.product_name ORDER BY first_payers DESC`;
+const planOk: StructuralResult = { passed: true, errors: [], normalizedSql: FIRST_PAYERS, referencedTables: ["analytics.payment_fact"] };
+const planResolution = resolution({
+  status: "resolved", requestedMetric: "첫 결제 고객 수", metricIds: ["first_payment_customer_n"], supportIds: ["plan"],
+  standaloneQuestion: "요금제별 첫 결제 고객 수 비교", grain: "상품별 첫 결제 고객", period: "가입 후 D+30(정의 기본값)",
+});
+const planGen = (extra: Partial<GenerationOutput["definition"]> = {}) =>
+  gen(FIRST_PAYERS, {
+    definition: {
+      metricIds: ["first_payment_customer_n"], definitionRefs: [], formula: "COUNT(DISTINCT user_key) WHERE payment_order = 1 AND relative_signup_day 0~30",
+      filters: ["payment_order = 1", "relative_signup_day BETWEEN 0 AND 30"], grain: "상품별 첫 결제 고객", unapprovedAssumptions: [], candidateIds: [], ...extra,
+    },
+  });
+
+describe("회귀 — 지표 판정과 정의 준수", () => {
+  it("회귀 1·4: 정의 없음/모호 판정이면 검색·생성 없이 선택지와 함께 되묻는다", async () => {
+    const { deps, generate, retrieve } = setup({
+      resolution: resolution({
+        status: "ambiguous", requestedMetric: "인기",
+        options: [{ label: "첫 결제 고객 수 기준(가입 후 D+30)", metricIds: ["first_payment_customer_n"] }],
+        clarificationQuestion: "'인기'의 계산 기준이 하나로 정해지지 않았습니다. 어떤 기준으로 계산할까요? 1) 첫 결제 고객 수 기준(가입 후 D+30)",
+      }),
+    });
+    const { events, response } = await run(deps, CONFIG, new AbortController().signal, "가장 인기 있는 요금제는 무엇이야?");
+    const r = expectStatus(response, "needs_clarification");
+    expect(r.clarificationQuestion).toContain("첫 결제 고객 수 기준");
+    expect(r.resolution?.options).toHaveLength(1);
+    expect(events.some((e) => e.type === "resolution")).toBe(true);
+    expect(retrieve).not.toHaveBeenCalled();
+    expect(generate).not.toHaveBeenCalled();
+  });
+
+  it("회귀 2: 후속 답변은 이전 대화와 함께 판정되고, 생성은 완결 질문을 쓴다", async () => {
+    const history: ConversationTurn[] = [
+      { question: "가장 인기 있는 요금제는 무엇이야?", status: "needs_clarification", clarificationQuestion: "어떤 기준으로 계산할까요? 1) 첫 결제 고객 수 기준", resolution: null },
+    ];
+    const { deps, resolve, generate, retrieve } = setup({
+      resolution: { ...planResolution, standaloneQuestion: "첫 결제 고객 수가 가장 많은 요금제", confirmed: ["인기 = 첫 결제 고객 수(사용자 선택)"] },
+      context: PLAN_CONTEXT, generations: [planGen()], structural: [planOk],
+    });
+    const r = expectStatus((await run(deps, CONFIG, new AbortController().signal, "1번 기준으로", history)).response, "passed");
+    expect(resolve.mock.calls[0]?.[0].history).toEqual(history);
+    expect(genInput(generate, 0).question).toBe("첫 결제 고객 수가 가장 많은 요금제");
+    expect(retrieve.mock.calls[0]?.[2]).toEqual(["first_payment_customer_n", "plan"]);
+    expect(r.question).toBe("1번 기준으로");
+    expect(r.resolution?.confirmed).toEqual(["인기 = 첫 결제 고객 수(사용자 선택)"]);
+  });
+
+  it("회귀 5·6: 명확한 지표는 되묻지 않고, 사용한 정의·계산식·필터·단위를 응답에 남긴다", async () => {
+    const { deps } = setup({ resolution: planResolution, context: PLAN_CONTEXT, generations: [planGen()], structural: [planOk] });
+    const r = expectStatus((await run(deps)).response, "passed");
+    expect(r.meta.definition).toMatchObject({
+      metricIds: ["first_payment_customer_n"],
+      definitionRefs: ["first_payment_customer_n@v4", "plan@v4"],
+      grain: "상품별 첫 결제 고객",
+      unapprovedAssumptions: [],
+    });
+    expect(r.meta.definition?.filters).toContain("payment_order = 1");
+  });
+
+  it("핵심: 검증 모델이 95점을 줘도 정의 불일치 판정이면 실행하지 않는다", async () => {
+    const { deps, execute } = setup({
+      resolution: planResolution, context: PLAN_CONTEXT, generations: [planGen()], structural: [planOk],
+      verdicts: [verdict(95, { definitionMatch: false })],
+    });
+    const r = expectStatus((await run(deps)).response, "failed");
+    expect(execute).not.toHaveBeenCalled();
+    expect(r.attempts[0]?.semantic.status).toBe("failed");
+    expect(r.attempts[0]?.semantic.score).toBe(95);
+    expect(r.reasons.join(" ")).toContain("공식 정의와 일치하지 않습니다");
+  });
+
+  it("검증 모델이 높은 점수와 함께 미승인 가정을 찾으면 통과시키지 않는다", async () => {
+    const { deps, execute, generate } = setup({
+      resolution: planResolution, context: PLAN_CONTEXT, generations: [planGen()], structural: [planOk],
+      verdicts: [verdict(96, { unapprovedAssumptions: ["인기를 첫 결제 건수로 해석"] }), verdict(95)],
+    });
+    expectStatus((await run(deps)).response, "passed");
+    expect(generate).toHaveBeenCalledTimes(2);
+    expect(genInput(generate, 1).feedback.join(" ")).toContain("미승인 가정");
+    expect(execute).toHaveBeenCalledTimes(1);
+  });
+
+  it("결정론적 검사: 첫 결제 조건이 빠진 SQL은 검증 모델 호출 전에 차단·재생성한다", async () => {
+    const noOrder = "SELECT p.product_code, COUNT(*) AS n FROM analytics.payment_fact p GROUP BY 1";
+    const { deps, verify, generate } = setup({
+      resolution: planResolution, context: PLAN_CONTEXT,
+      generations: [gen(noOrder, { definition: planGen().definition }), planGen()],
+      structural: [{ passed: true, errors: [], normalizedSql: noOrder, referencedTables: ["analytics.payment_fact"] }, planOk],
+    });
+    const r = expectStatus((await run(deps)).response, "passed");
+    expect(r.attempts[0]?.semantic.errors.join(" ")).toContain("payment_order = 1");
+    expect(verify).toHaveBeenCalledTimes(1);
+    expect(genInput(generate, 1).feedback.join(" ")).toContain("[정의 검사]");
+  });
+
+  it("생성 모델이 밝힌 미승인 가정은 재생성하지 않고 사용자에게 확인한다", async () => {
+    const { deps, verify, execute } = setup({
+      resolution: planResolution, context: PLAN_CONTEXT,
+      generations: [planGen({ unapprovedAssumptions: ["'광고형'을 package_type_id 3번째 자리로 판단"] })], structural: [planOk],
+    });
+    const r = expectStatus((await run(deps)).response, "needs_clarification");
+    expect(r.clarificationQuestion).toContain("package_type_id");
+    expect(verify).not.toHaveBeenCalled();
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it("지표 판정 실패(모델 오류)는 판정 없이 SQL을 만들지 않는다", async () => {
+    const { deps, generate } = setup({});
+    deps.resolver = { resolve: async () => Promise.reject(new StageError("upstream", "모델 서버 오류", false)) };
+    const r = expectStatus((await run(deps)).response, "failed");
+    expect(r.message).toContain("지표를 판정하지 못했습니다");
+    expect(generate).not.toHaveBeenCalled();
+  });
+});
+
+describe("정의 문제와 기술 오류 구분", () => {
+  it("정의 없음 판정은 definition_missing으로 보류된다", async () => {
+    const { deps } = setup({ resolution: resolution({ status: "undefined", requestedMetric: "이탈률", clarificationQuestion: "'이탈률' 정의 없음" }) });
+    const r = expectStatus((await run(deps)).response, "needs_clarification");
+    expect(r.issueType).toBe("definition_missing");
+    expect(r.missingDefinitions).toEqual(["이탈률"]);
+  });
+
+  it("데이터 범위 밖 기간은 data_unavailable", async () => {
+    const { deps } = setup({ resolution: resolution({ status: "unavailable", reason: "범위 밖", clarificationQuestion: "범위 밖" }) });
+    expect(expectStatus((await run(deps)).response, "needs_clarification").issueType).toBe("data_unavailable");
+  });
+
+  it("SQL 구조 오류 반복은 sql_error (정의 문제가 아님)", async () => {
+    const { deps } = setup({ structural: [bad("컬럼 x가 존재하지 않습니다."), bad("컬럼 x가 존재하지 않습니다.")] });
+    expect(expectStatus((await run(deps)).response, "failed").issueType).toBe("sql_error");
+  });
+
+  it("검증 모델의 정의 불일치 반복은 definition_conflict", async () => {
+    const { deps } = setup({
+      resolution: planResolution, context: PLAN_CONTEXT, generations: [planGen()], structural: [planOk],
+      verdicts: [verdict(95, { definitionMatch: false })],
+    });
+    expect(expectStatus((await run(deps)).response, "failed").issueType).toBe("definition_conflict");
+  });
+
+  it("후보 정의를 쓴 결과는 응답·로그에 후보임이 남는다", async () => {
+    const { deps, logger } = setup({
+      resolution: { ...planResolution, supportIds: ["plan", "plan_ad_tier"], candidateIds: ["plan_ad_tier"] },
+      context: { ...PLAN_CONTEXT, definitions: [...PLAN_CONTEXT.definitions!, def("plan_ad_tier")] },
+      generations: [planGen()], structural: [planOk],
+    });
+    const r = expectStatus((await run(deps)).response, "passed");
+    expect(r.meta.definition?.candidateIds).toEqual(["plan_ad_tier"]);
+    expect(r.meta.definition?.definitionRefs).toContain("plan_ad_tier@v4");
+    expect(logger.logs[0]?.resolution?.candidateIds).toEqual(["plan_ad_tier"]);
   });
 });

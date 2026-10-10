@@ -10,7 +10,6 @@ import { readEnvFile, upsertEnvFile } from "./lib/envFile";
 import { definitionSchema, SEED_DEFINITIONS } from "../src/server/semantic/definitions";
 
 const localFile = path.resolve(".env.local");
-const local = readEnvFile(localFile);
 const adminFile = readEnvFile(path.resolve(process.env.ADMIN_ENV_FILE ?? ".env.local"));
 const adminRaw = process.env.DATABASE_URL_ADMIN ?? adminFile.DATABASE_URL_ADMIN ?? adminFile.DATABASE_URL_UNPOOLED;
 const adminUrl = adminRaw?.startsWith('"') ? JSON.parse(adminRaw) as string : adminRaw;
@@ -25,7 +24,6 @@ if (appUrl.hostname.endsWith(".neon.tech") && !appUrl.hostname.split(".")[0].end
   parts[0] += "-pooler";
   appUrl.hostname = parts.join(".");
 }
-const adminToken = local.SEMANTIC_ADMIN_TOKEN || randomBytes(32).toString("hex");
 const ssl = /@(127\.0\.0\.1|localhost)[:/]/.test(adminUrl) ? false : { rejectUnauthorized: false };
 const admin = new Client({ connectionString: adminUrl, ssl });
 
@@ -63,8 +61,8 @@ try {
 } finally {
   await reader.end();
 }
-upsertEnvFile(localFile, { DATABASE_URL_APP: appUrl.toString(), SEMANTIC_ADMIN_TOKEN: adminToken });
-console.log("앱 접속 정보와 관리 토큰을 .env.local에 저장했습니다.");
+upsertEnvFile(localFile, { DATABASE_URL_APP: appUrl.toString() });
+console.log("앱 접속 정보를 .env.local에 저장했습니다.");
 }
 
 main().catch((error: unknown) => {

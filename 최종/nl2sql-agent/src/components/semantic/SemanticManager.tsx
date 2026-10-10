@@ -29,7 +29,6 @@ export function SemanticManager() {
   const [definitions, setDefinitions] = useState<StoredDefinition[]>([]);
   const [query, setQuery] = useState("");
   const [result, setResult] = useState<SearchResult | null>(null);
-  const [token, setToken] = useState("");
   const [draft, setDraft] = useState("");
   const [runs, setRuns] = useState<Run[]>([]);
   const [message, setMessage] = useState("");
@@ -48,7 +47,7 @@ export function SemanticManager() {
 
   const request = async (url: string, method: string, body?: unknown) =>
     json(await fetch(url, {
-      method, headers: { Authorization: `Bearer ${token}`, ...(body ? { "Content-Type": "application/json" } : {}) },
+      method, headers: body ? { "Content-Type": "application/json" } : undefined,
       body: body ? JSON.stringify(body) : undefined,
     }));
 
@@ -131,21 +130,17 @@ export function SemanticManager() {
       </section>
 
       <section className="mt-10 border-t border-line pt-5">
-        <h2 className="text-xl font-semibold">관리자 작업</h2>
-        <label className="mt-3 block text-sm">관리 토큰
-          <input type="password" autoComplete="off" value={token} onChange={(e) => setToken(e.target.value)}
-            className="mt-1 block w-full max-w-md rounded border border-line bg-white px-3 py-2" />
-        </label>
+        <h2 className="text-xl font-semibold">정의 편집과 실행 기록</h2>
         <div className="mt-4 flex flex-wrap gap-2">
           <button onClick={() => setDraft(JSON.stringify(template, null, 2))} className="rounded border border-accent px-3 py-2 text-sm text-accent">새 정의</button>
-          <button onClick={loadRuns} disabled={busy || !token} className="rounded border border-accent px-3 py-2 text-sm text-accent disabled:opacity-50">실행 기록 불러오기</button>
+          <button onClick={loadRuns} disabled={busy} className="rounded border border-accent px-3 py-2 text-sm text-accent disabled:opacity-50">실행 기록 불러오기</button>
         </div>
         {draft && (
           <div className="mt-4">
             <label htmlFor="definition-json" className="block text-sm font-medium">정의 JSON 편집</label>
             <textarea id="definition-json" value={draft} onChange={(e) => setDraft(e.target.value)} spellCheck={false}
               className="mt-1 h-96 w-full rounded border border-line bg-white p-3 font-mono text-xs" />
-            <button onClick={save} disabled={busy || !token} className="mt-2 rounded bg-accent px-4 py-2 text-sm text-white disabled:opacity-50">저장</button>
+            <button onClick={save} disabled={busy} className="mt-2 rounded bg-accent px-4 py-2 text-sm text-white disabled:opacity-50">저장</button>
           </div>
         )}
         {runs.length > 0 && <div className="mt-5 space-y-3">

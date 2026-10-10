@@ -5,6 +5,19 @@
  */
 export const DATA_NOTES_VERSION = "data-notes.v0";
 
+/**
+ * 날짜 컬럼별 관측 범위 — 2026-10-10 운영 Neon(analytics) min/max 조회로 확인.
+ * 저장된 날짜는 개인정보 보호를 위해 실제보다 365일 이동된 값이다(문제 PDF 데이터 설명 (7)).
+ * 요청 기간이 이 범위를 벗어나면 Semantic Resolver가 계산하지 않고 이유를 설명한다.
+ */
+export const DATA_COVERAGE = {
+  signup_date: { start: "2025-02-01", end: "2025-04-01" },
+  payment_date: { start: "2025-02-01", end: "2025-06-28" },
+  watch_date: { start: "2025-02-01", end: "2025-05-31" },
+  event_date: { start: "2025-02-01", end: "2025-05-01" },
+} as const;
+export type CoverageColumn = keyof typeof DATA_COVERAGE;
+
 export const DATA_NOTES = `
 [전체]
 - 2025-02-01 ~ 2025-04-01 가입자 50,000명 단일 코호트. 모든 fact의 user_key는 user_dim에 존재.

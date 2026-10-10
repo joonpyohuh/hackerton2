@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { StageError } from "@/server/agent/errors";
 
-export type PromptName = "sql-generator" | "sql-verifier";
+export type PromptName = "semantic-resolver" | "sql-generator" | "sql-verifier";
 
 const cache = new Map<string, string>();
 

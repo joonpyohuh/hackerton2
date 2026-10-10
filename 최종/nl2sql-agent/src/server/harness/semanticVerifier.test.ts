@@ -17,7 +17,17 @@ const CONTEXT: RetrievedContext = {
   sources: [],
 };
 const signal = new AbortController().signal;
-const input = { question: "주문 금액 합계", sql: "SELECT sum(amount) FROM demo.orders", context: CONTEXT };
+const input = {
+  question: "주문 금액 합계",
+  sql: "SELECT sum(amount) FROM demo.orders",
+  context: CONTEXT,
+  resolution: {
+    status: "no_metric" as const, standaloneQuestion: "주문 금액 합계", requestedMetric: null, metricIds: [], supportIds: [], filters: [],
+    period: null, grain: null, relations: [], unspecified: [], confirmed: [], assumptions: [], options: [], reason: null, clarificationQuestion: null,
+    concepts: [], candidateIds: [],
+  },
+  definition: { metricIds: [], definitionRefs: [], formula: "sum(amount)", filters: [], grain: "전체", unapprovedAssumptions: [], candidateIds: [] },
+};
 
 function verifierReturning(content: string) {
   const chat = vi.fn<ChatClient>(async () => ({ content, inputTokens: 120, outputTokens: 40 }));
@@ -29,8 +39,14 @@ describe("SemanticVerifier", () => {
     const { verifier, chat } = verifierReturning(JSON.stringify({ passed: true, score: 95, errors: [] }));
     const v = await verifier.verify(input, signal);
     expect(v).toMatchObject({ passed: true, score: 95, suggestions: [], missingDefinitions: [], needsClarification: false });
-    expect(v.usage).toEqual({ stage: "verification", model: "verifier-model", promptVersion: "sql-verifier.v0", inputTokens: 120, outputTokens: 40 });
+    expect(v.usage).toEqual({ stage: "verification", model: "verifier-model", promptVersion: "sql-verifier.v1", inputTokens: 120, outputTokens: 40 });
     expect(chat.mock.calls[0]?.[0]).toMatchObject({ model: "verifier-model", json: true, user: `${input.question}|${input.sql}` });
+  });
+
+  it("정의 일치 판정이 응답에 없으면 일치로 보지 않는다 (fail-closed)", async () => {
+    const { verifier } = verifierReturning(JSON.stringify({ passed: true, score: 98, errors: [] }));
+    const v = await verifier.verify(input, signal);
+    expect(v).toMatchObject({ definitionMatch: false, grainMatch: false, unapprovedAssumptions: [] });
   });
 
   it("passed=true인데 오류가 있으면 실패로 본다", async () => {

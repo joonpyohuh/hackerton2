@@ -2,7 +2,7 @@
  * MOCK — UI 개발 전용. 실제 데이터셋·스키마와 무관한 가상 상점 테이블(mock_*)을 사용한다.
  * 여기의 숫자는 분석 결과가 아니며, 화면에도 isMock=true로 표시된다.
  */
-import type { AgentEvent, AgentResponse, Attempt, CheckResult, RunningStage } from "@/lib/agent/contract";
+import type { AgentEvent, AgentResponse, Attempt, CheckResult, Resolution, RunningStage } from "@/lib/agent/contract";
 
 export type MockScenario = "success_after_retry" | "clarification" | "repeated_error" | "unsupported_question";
 
@@ -62,21 +62,49 @@ export async function* runMockAgent(question: string, options: Options = {}): As
   const base = () => ({ requestId, question, isMock: true, durationMs: Date.now() - startedAt });
 
   const scenario = pickScenario(question);
-  yield stage("retrieving", 0);
+  yield stage("resolving", 0);
   await wait();
 
   if (scenario === "clarification") {
+    // 실제 파이프라인과 같은 경로: 지표 판정 단계에서 정의 없음 → 계산 가능한 가상 선택지 제시
+    const resolution: Resolution = {
+      status: "undefined",
+      standaloneQuestion: question,
+      requestedMetric: "유지율",
+      metricIds: [],
+      supportIds: [],
+      filters: [],
+      period: null,
+      grain: null,
+      relations: [],
+      unspecified: [],
+      confirmed: [],
+      assumptions: [],
+      options: [
+        { label: "가상 28일 재주문율", metricIds: ["mock_reorder_28"] },
+        { label: "가상 첫 주문 후 활성률", metricIds: ["mock_active_7"] },
+      ],
+      reason: "‘유지율’은 Mock 정의 목록에 없어 임의로 계산하지 않습니다.",
+      concepts: [{ phrase: "유지율", role: "metric", ids: [] }],
+      candidateIds: [],
+      clarificationQuestion:
+        "‘유지율’은 Mock 정의 목록에 없어 임의로 계산하지 않습니다. 공식 정의로 계산할 수 있는 기준: 1) 가상 28일 재주문율 2) 가상 첫 주문 후 활성률",
+    };
+    yield { type: "resolution", resolution };
     const response: AgentResponse = {
       status: "needs_clarification",
       ...base(),
       attempts: [],
-      clarificationQuestion:
-        "‘유지율’의 기준을 정해 주세요. 분모(최초 가입자 또는 첫 결제자)와 관측 기간(예: 가입 후 28일)이 필요합니다.",
-      missingDefinitions: ["유지율 — 분모 정의", "유지율 — 관측 기간"],
+      resolution,
+      clarificationQuestion: resolution.clarificationQuestion!,
+      missingDefinitions: ["유지율"],
     };
     yield { type: "final", response };
     return;
   }
+
+  yield stage("retrieving", 0);
+  await wait();
 
   if (scenario === "unsupported_question") {
     yield {

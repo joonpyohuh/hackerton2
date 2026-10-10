@@ -7,7 +7,7 @@ const definitions = SEED_DEFINITIONS.map((item) => ({ ...definitionSchema.parse(
 describe("질문별 시맨틱 검색", () => {
   it("PDF 요구 지표·차원·업무 용어가 유효한 정의로 등록된다", () => {
     expect(definitions.filter((d) => d.kind === "metric").length).toBeGreaterThanOrEqual(3);
-    expect(definitions.filter((d) => d.kind === "dimension")).toHaveLength(5);
+    expect(definitions.filter((d) => d.kind === "dimension")).toHaveLength(6);
     expect(definitions.filter((d) => d.kind === "term").length).toBeGreaterThanOrEqual(80);
     expect(definitions.filter((d) => d.kind === "term").length).toBeGreaterThanOrEqual(3);
   });

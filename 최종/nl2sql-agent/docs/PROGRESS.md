@@ -164,3 +164,23 @@ TODO
 미실행
 - 실제 OpenAI 호출 (키 미설정)
 - Supabase 적용, Vercel 배포 (계정 필요)
+
+---
+
+## Semantic Resolver · 대화 상태 · 정의 준수 검사 — 2026-10-10
+
+구현
+- `src/server/semantic/resolver.ts` + `prompts/semantic-resolver.v0.md` — SQL 생성 전 지표·기간·집계 단위·필터·확정 조건 판정.
+  LLM은 카탈로그 ID를 제안만 하고, `finalizeResolution`이 존재·상태(needs_data)·데이터 범위(`DATA_COVERAGE`)·미승인 가정을 결정론적으로 재판정
+- 대화 상태: 요청 `history`(최근 6턴, 판정 결과 포함) → Resolver가 완결 질문(`standaloneQuestion`)으로 합침. 화면에 선택지 버튼·새 대화
+- `src/server/harness/definitionCheck.ts` — 정의 준수 검사(지표 ID 일치, 필수 테이블, 정의 산식의 리터럴 조건, 계산식 누락, 생성 모델이 밝힌 미승인 가정)
+- 생성 v1·검증 v1 프롬프트 — 생성 메타데이터(metricIds·formula·filters·grain·unapprovedAssumptions), 검증 모델의 definitionMatch·grainMatch·unapprovedAssumptions.
+  점수 ≥ 기준이어도 셋 중 하나라도 위반이면 실패
+- 검색: Resolver가 의미로 고른 정의 우선, 다른 metric은 표현 일치만으로 넣지 않음, 컬럼 사전은 컬럼명이 질문에 있을 때만
+
+검증 (실제 실행)
+- `npm test` 128 통과 (db.test.ts는 로컬 PostgreSQL 미기동으로 실패 — 기존과 동일)
+- typecheck / lint / build 통과, Mock 모드 화면에서 선택지 버튼 → history 전송 확인
+
+미실행
+- 실제 OpenAI 호출로 6개 회귀 질문 수정 후 응답 확인 (로컬에 OPENAI_API_KEY 없음, 운영 배포 필요)

@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { candidate, official, type Authority } from "./authority";
+import { CANDIDATE_DEFINITIONS } from "./candidates";
 import { DICTIONARY_DEFINITIONS } from "./dictionary";
 
 export const definitionSchema = z.object({
@@ -19,12 +21,51 @@ export const definitionSchema = z.object({
   missing: z.string().min(1).max(500),
   caveat: z.string().max(1000),
   status: z.enum(["ready", "needs_data"]),
+  /**
+   * official: 제공된 공식 자료(문제 PDF)에 근거한 정의.
+   * candidate: 공식 정의가 없어 실제 데이터로 계산 가능하게 제안한 후보 — AI가 만든 정의이므로 공식으로 취급하지 않는다.
+   * 출처가 표시되지 않은 정의는 후보로 본다(fail-safe).
+   */
+  authority: z.enum(["official", "candidate"]).default("candidate"),
+  source: z.string().max(300).default("출처 미기재"),
 });
 export type Definition = z.infer<typeof definitionSchema>;
 export type StoredDefinition = Definition & { version: number };
+/** 시드 작성용 — 근거(authority·source)는 아래 SEED_AUTHORITY에서 붙인다. */
+export type SeedInput = Omit<Definition, "authority" | "source">;
 
-const d = (value: Definition): Definition => value;
-const BASE_SEED_DEFINITIONS: Definition[] = [
+/**
+ * 기본 시드의 근거. 문제 PDF에 지표·용어로 명시된 것만 official이다.
+ * PDF 기준을 비율로 확장했거나 PDF에 없는 지표는 candidate로 둔다.
+ */
+const SEED_AUTHORITY: Record<string, Authority> = {
+  signup_customers: official("문제 1-4 필수 KPI '전체 가입 고객 수'"),
+  payment_conversion_30: official("문제 1-1 필수 비교 지표 '가입 후 D+7·D+14·D+30 결제 전환율'"),
+  watch_retention_22_28: official("문제 1-1 필수 비교 지표 '결제 후 D+22~D+28 시청 유지율'"),
+  early_nonwatch_rate: candidate("PDF 1-1 '(참고) 초기 시청 실패 고객' 권장 기준을 비율로 확장한 후보 — 비율 산식은 PDF에 없음"),
+  average_watch_raw: candidate("데이터 산출 후보 — PDF에 지표 정의 없음"),
+  campaign_response_rate: candidate("PDF 1-3 캠페인 KPI 요구에 대응한 자리표시 — 계산 원천 데이터 없음"),
+  age_band: official("데이터 설명 (2) user_dim.age_band"),
+  plan: official("데이터 설명 (4) payment_fact.product_code·product_name"),
+  content_genre: official("데이터 설명 (6) content_genre_bridge"),
+  early_watch_failure: official("문제 1-1 '(참고) 초기 시청 실패 고객' 권장 기준"),
+  active_customer: official("문제 1-1 '결제 후 D+N 활성 고객'"),
+  unwatched_customer: candidate("데이터 산출 후보 — PDF에 없음"),
+  exploratory_customer: official("문제 1-1 '탐색 고객'"),
+  voucher_interest_customer: official("문제 1-1 '이용권 관심 고객'"),
+  first_payment_customer_n: official("문제 1-1 'D+N 첫 결제 고객'"),
+  postpayment_unwatched_customer_n: candidate("PDF '초기 시청 실패(결제 후 D+7)'를 N일로 일반화한 후보"),
+  watch_retained_customer_22_28: official("문제 1-1 'D+22~D+28 시청 고객'"),
+  vod_customer: official("문제 1-1 'VOD·영화·LIVE 이용률' channel_type = 'V'"),
+  movie_customer: official("문제 1-1 'VOD·영화·LIVE 이용률' channel_type = 'M'"),
+  live_customer: official("문제 1-1 'VOD·영화·LIVE 이용률' channel_type = 'L'"),
+  push_reachable_customer: official("문제 1-3·1-4 'push_opt_in_current = 1' 푸시 도달 가능 타깃"),
+  preferred_content: candidate("데이터 산출 후보 — PDF에 선호 콘텐츠 정의 없음"),
+  preferred_genre: candidate("데이터 산출 후보 — 다중 장르 균등 배분은 분석 가정"),
+};
+
+const d = (value: SeedInput): SeedInput => value;
+const BASE_SEED_INPUTS: SeedInput[] = [
   d({
     id: "signup_customers", kind: "metric", name: "가입 고객", aliases: ["가입자 수", "전체 가입자", "전체 가입 고객"],
     description: "선택한 가입 코호트의 고유 고객 수.", tables: ["analytics.user_dim"], columns: ["user_dim.user_key", "user_dim.signup_date"], joins: [],
@@ -44,7 +85,7 @@ const BASE_SEED_DEFINITIONS: Definition[] = [
     missing: "가입 고객 0명이면 NULL 또는 계산 불가.", caveat: "첫 결제 건수와 첫 결제 고객 수를 혼동하지 않는다. payment_fact의 관측은 D90까지여서 N>90이면 완전한 전환율을 계산할 수 없다.", status: "ready",
   }),
   d({
-    id: "watch_retention_22_28", kind: "metric", name: "D+22~28 시청 유지율", aliases: ["시청 유지율", "4주차 유지율", "결제 후 유지율"],
+    id: "watch_retention_22_28", kind: "metric", name: "D+22~28 시청 유지율", aliases: ["유지율", "리텐션", "시청 유지율", "4주차 유지율", "결제 후 유지율"],
     description: "가입 후 30일 내 첫 결제한 고객 중 결제일로부터 22~28일 사이 시청한 고객 비율.",
     tables: ["analytics.payment_fact", "analytics.watch_daily_fact"],
     columns: ["payment_fact.user_key", "payment_fact.payment_date", "payment_fact.payment_order", "payment_fact.relative_signup_day", "watch_daily_fact.user_key", "watch_daily_fact.watch_date"],
@@ -233,7 +274,12 @@ const BASE_SEED_DEFINITIONS: Definition[] = [
   }),
 ];
 
-export const SEED_DEFINITIONS: Definition[] = [...BASE_SEED_DEFINITIONS, ...DICTIONARY_DEFINITIONS];
+const BASE_SEED_DEFINITIONS: Definition[] = BASE_SEED_INPUTS.map((item) => ({
+  ...item,
+  ...(SEED_AUTHORITY[item.id] ?? candidate("출처 미기재")),
+}));
+
+export const SEED_DEFINITIONS: Definition[] = [...BASE_SEED_DEFINITIONS, ...DICTIONARY_DEFINITIONS, ...CANDIDATE_DEFINITIONS];
 
 export function renderDefinition(item: StoredDefinition): string {
   return [

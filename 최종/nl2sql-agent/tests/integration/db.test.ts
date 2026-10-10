@@ -85,6 +85,16 @@ describe.skipIf(!url)("analytics DB (읽기 전용 계정)", () => {
     const usage = { model: "fake", promptVersion: null, inputTokens: 0, outputTokens: 0 };
     const logger = new InMemoryRunLogger();
     const deps: PipelineDeps = {
+      resolver: {
+        resolve: async ({ question }) => ({
+          resolution: {
+            status: "no_metric", standaloneQuestion: question, requestedMetric: null, metricIds: [], supportIds: [], filters: [],
+            period: null, grain: "가입 기기", relations: [], unspecified: [], confirmed: [], assumptions: [], options: [], reason: null, clarificationQuestion: null,
+            concepts: [], candidateIds: [],
+          },
+          usage: null,
+        }),
+      },
       retriever: createBasicRetriever({ getMetadata: async () => meta, notesVersion: "test" }),
       generator: {
         generate: async () => ({
@@ -97,12 +107,13 @@ describe.skipIf(!url)("analytics DB (읽기 전용 계정)", () => {
           assumptions: [],
           needsClarification: false,
           clarificationQuestion: null,
+          definition: { metricIds: [], definitionRefs: [], formula: "COUNT(*) GROUP BY signup_device_type", filters: [], grain: "가입 기기", unapprovedAssumptions: [], candidateIds: [] },
           usage: { stage: "generation", ...usage },
         }),
       },
       structural: createStructuralValidator({ catalog: meta.catalog, allowedSchemas: ["analytics"] }),
       verifier: {
-        verify: async () => ({ passed: true, score: 95, errors: [], suggestions: [], missingDefinitions: [], needsClarification: false, usage: { stage: "verification", ...usage } }),
+        verify: async () => ({ passed: true, score: 95, errors: [], suggestions: [], missingDefinitions: [], needsClarification: false, definitionMatch: true, grainMatch: true, unapprovedAssumptions: [], usage: { stage: "verification", ...usage } }),
       },
       executor: createQueryExecutor({ pool, maxRows: 1000, statementTimeoutMs: 5_000 }),
       formatter: createTemplateFormatter(),

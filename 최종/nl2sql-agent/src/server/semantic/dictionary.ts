@@ -1,4 +1,5 @@
-import type { Definition } from "./definitions";
+import { candidate, official, type Authority } from "./authority";
+import type { Definition, SeedInput } from "./definitions";
 
 /**
  * 2026 산업데이터 분석 레벨업 해커톤 문제 PDF의 "데이터 설명(1)~(7)"과 "알아둘 용어", "문제 1-1 필수 비교 지표"를 옮긴 정의.
@@ -15,6 +16,16 @@ const TABLE_NOTES: Record<Table, { grain: string; period: string }> = {
   user_content_summary: { grain: "고객×콘텐츠", period: "가입 후 D0~D60 누적" },
   content_dim: { grain: "콘텐츠", period: "메타데이터(기간 없음)" },
   content_genre_bridge: { grain: "콘텐츠×장르", period: "메타데이터(기간 없음)" },
+};
+
+const SECTION: Record<Table, string> = {
+  user_dim: "데이터 설명 (2)",
+  behavior_fact: "데이터 설명 (2)",
+  payment_fact: "데이터 설명 (4)",
+  watch_daily_fact: "데이터 설명 (5)",
+  user_content_summary: "데이터 설명 (5)",
+  content_dim: "데이터 설명 (6)",
+  content_genre_bridge: "데이터 설명 (6)",
 };
 
 const MISSING = "NULL 또는 빈 값은 임의로 채우지 않고 결측으로 표시한다.";
@@ -40,6 +51,7 @@ function column(table: Table, name: string, label: string, description: string, 
     missing: MISSING,
     caveat,
     status: "ready",
+    ...official(`${SECTION[table]} ${table}.${name}`),
   };
 }
 
@@ -63,6 +75,7 @@ function sharedColumn(tables: Table[], name: string, label: string, description:
     missing: MISSING,
     caveat,
     status: "ready",
+    ...official("데이터 설명 (1) 분할 파일 안내"),
   };
 }
 
@@ -163,7 +176,7 @@ const SHARED_COLUMNS: Definition[] = [
   ),
 ];
 
-const CODE_DEFINITIONS: Definition[] = [
+const CODE_DEFINITIONS: SeedInput[] = [
   {
     id: "channel_type_code",
     kind: "dimension",
@@ -299,7 +312,7 @@ const CODE_DEFINITIONS: Definition[] = [
   },
 ];
 
-const EXTRA_METRICS: Definition[] = [
+const EXTRA_METRICS: SeedInput[] = [
   {
     id: "payment_conversion_by_explore_behavior",
     kind: "metric",
@@ -345,7 +358,7 @@ const BEHAVIOR_SPECS: BehaviorSpec[] = [
   { code: "NEXT_EPISODE_CLICK", name: "다음 회차 클릭", desc: "다음 회차를 직접 클릭한 행동.", caveat: "" },
 ];
 
-const BEHAVIOR_TERMS: Definition[] = BEHAVIOR_SPECS.map((spec) => ({
+const BEHAVIOR_TERMS: SeedInput[] = BEHAVIOR_SPECS.map((spec) => ({
   id: `behavior_${spec.code.toLowerCase()}`,
   kind: "term",
   name: spec.name,
@@ -365,6 +378,23 @@ const BEHAVIOR_TERMS: Definition[] = BEHAVIOR_SPECS.map((spec) => ({
   status: "ready",
 }));
 
+/** 코드·용어·지표 정의의 근거. 행동 유형(behavior_*)은 데이터 설명 (3) 표에서 왔다. */
+const DICTIONARY_AUTHORITY: Record<string, Authority> = {
+  channel_type_code: official("데이터 설명 (5) channel_type (V: VOD, M: 영화, L: LIVE)"),
+  genre_source_code: official("데이터 설명 (6) genre_source 값"),
+  content_key_format: official("데이터 설명 (6) content_key 구성"),
+  payment_first_order: official("데이터 설명 (4) '첫 결제는 payment_order = 1'"),
+  d_plus_n: official("알아둘 용어 'D+N'"),
+  gender_code_unknown: official("데이터 설명 (2) gender_code '남성·여성으로 임의 해석하지 않음'"),
+  currency_type_comparison: official("데이터 설명 (4)·(7) '통화가 다른 금액은 직접 합산하지 않음'"),
+  payment_conversion_by_explore_behavior: candidate("PDF 1-1 '주요 탐색 행동별 첫 결제 전환율'은 이름만 있고 산식·행동 목록이 없어 데이터로 보완한 후보"),
+};
+const withAuthority = (item: SeedInput): Definition => ({
+  ...item,
+  ...(DICTIONARY_AUTHORITY[item.id] ??
+    (item.id.startsWith("behavior_") ? official(`데이터 설명 (3) behavior_type '${item.aliases[0]}'`) : candidate("출처 미기재"))),
+});
+
 export const DICTIONARY_DEFINITIONS: Definition[] = [
   ...USER_DIM,
   ...BEHAVIOR_FACT,
@@ -374,8 +404,6 @@ export const DICTIONARY_DEFINITIONS: Definition[] = [
   ...CONTENT_DIM,
   ...CONTENT_GENRE_BRIDGE,
   ...SHARED_COLUMNS,
-  ...BEHAVIOR_TERMS,
-  ...CODE_DEFINITIONS,
-  ...EXTRA_METRICS,
+  ...[...BEHAVIOR_TERMS, ...CODE_DEFINITIONS, ...EXTRA_METRICS].map(withAuthority),
 ];
 

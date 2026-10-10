@@ -4,7 +4,6 @@ import { buildLiveAgent } from "@/server/agent/live";
 import { getEnv } from "@/server/config/env";
 import { definitionSchema } from "@/server/semantic/definitions";
 import { getSemanticStore } from "@/server/semantic/store";
-import { isAdmin } from "@/server/semantic/admin";
 
 const error = (message: string, status: number) => NextResponse.json({ error: message }, { status });
 const config = () => {
@@ -12,8 +11,6 @@ const config = () => {
   if (!env.DATABASE_URL_APP) throw new Error("정의 저장소가 설정되지 않았습니다.");
   return { env, store: getSemanticStore(env.DATABASE_URL_APP) };
 };
-const authorized = (req: Request, token: string | undefined) =>
-  !token ? error("관리 토큰이 설정되지 않았습니다.", 503) : !isAdmin(req, token) ? error("관리 토큰이 필요합니다.", 401) : null;
 
 export async function GET(req: Request) {
   try {
@@ -33,9 +30,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const { env, store } = config();
-    const denied = authorized(req, env.SEMANTIC_ADMIN_TOKEN);
-    if (denied) return denied;
+    const { store } = config();
     const item = definitionSchema.parse(await req.json());
     return NextResponse.json(await store.create(item), { status: 201 });
   } catch (e) {
@@ -47,9 +42,7 @@ export async function POST(req: Request) {
 
 export async function PUT(req: Request) {
   try {
-    const { env, store } = config();
-    const denied = authorized(req, env.SEMANTIC_ADMIN_TOKEN);
-    if (denied) return denied;
+    const { store } = config();
     const parsed = z.object({ definition: definitionSchema, version: z.number().int().positive() }).parse(await req.json());
     const updated = await store.update(parsed.definition, parsed.version);
     return updated ? NextResponse.json(updated) : error("정의가 바뀌었거나 존재하지 않습니다. 새로고침 후 다시 편집하세요.", 409);
@@ -61,9 +54,7 @@ export async function PUT(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
-    const { env, store } = config();
-    const denied = authorized(req, env.SEMANTIC_ADMIN_TOKEN);
-    if (denied) return denied;
+    const { store } = config();
     const id = new URL(req.url).searchParams.get("id") ?? "";
     if (!/^[a-z][a-z0-9_]{2,63}$/.test(id)) return error("정의 ID가 올바르지 않습니다.", 400);
     return (await store.delete(id)) ? NextResponse.json({ deleted: id }) : error("정의를 찾을 수 없습니다.", 404);

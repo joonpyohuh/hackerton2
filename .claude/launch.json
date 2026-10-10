@@ -1,0 +1,18 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "nl2sql-agent",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "해커톤2026_수정본/nl2sql-agent", "run", "start", "--", "-p", "3107"],
+      "port": 3107
+    },
+    {
+      "name": "nl2sql-agent-mock",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "최종/nl2sql-agent", "run", "start", "--", "-p", "3108"],
+      "env": { "AGENT_MODE": "mock" },
+      "port": 3108
+    }
+  ]
+}

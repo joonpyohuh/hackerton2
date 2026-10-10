@@ -1,12 +1,15 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ZodError } from "zod";
 import {
   agentEventSchema,
+  MAX_HISTORY_TURNS,
   type AgentEvent,
   type AgentResponse,
   type Attempt,
+  type ConversationTurn,
+  type Resolution,
   type RunningStage,
 } from "@/lib/agent/contract";
 import { createNdjsonParser } from "@/lib/agent/ndjson";
@@ -18,6 +21,7 @@ export type Turn = {
   attemptNo: number; // 0부터
   attempts: Attempt[];
   context: Extract<AgentEvent, { type: "context" }> | null;
+  resolution: Resolution | null;
   response: AgentResponse | null;
   error: string | null;
 };
@@ -33,6 +37,8 @@ function reduceTurn(turn: Turn, event: AgentEvent): Turn {
       return { ...turn, attempts: [...turn.attempts, event.attempt] };
     case "context":
       return { ...turn, context: event };
+    case "resolution":
+      return { ...turn, resolution: event.resolution };
     case "final":
       return { ...turn, stage: null, response: event.response, attempts: event.response.attempts };
     case "error":
@@ -40,15 +46,36 @@ function reduceTurn(turn: Turn, event: AgentEvent): Turn {
   }
 }
 
+/**
+ * 서버로 보낼 대화 이력. 응답이 끝난 턴만, 최근 MAX_HISTORY_TURNS개를 보낸다.
+ * 서버는 이 값을 데이터로만 쓰고 지표 판정을 다시 검증한다.
+ */
+function toHistory(turns: Turn[]): ConversationTurn[] {
+  return turns
+    .filter((t) => t.response)
+    .slice(-MAX_HISTORY_TURNS)
+    .map((t) => ({
+      question: t.question,
+      status: t.response!.status,
+      clarificationQuestion: t.response!.status === "needs_clarification" ? t.response!.clarificationQuestion : null,
+      resolution: t.response!.resolution ?? t.resolution,
+    }));
+}
+
 export function useAgentStream() {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [running, setRunning] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  const turnsRef = useRef<Turn[]>([]);
+  useEffect(() => {
+    turnsRef.current = turns;
+  }, [turns]);
 
   const ask = useCallback(async (question: string) => {
+    const history = toHistory(turnsRef.current);
     const id = crypto.randomUUID();
     const update = (fn: (t: Turn) => Turn) => setTurns((ts) => ts.map((t) => (t.id === id ? fn(t) : t)));
-    setTurns((ts) => [...ts, { id, question, stage: null, attemptNo: 0, attempts: [], context: null, response: null, error: null }]);
+    setTurns((ts) => [...ts, { id, question, stage: "resolving", attemptNo: 0, attempts: [], context: null, resolution: null, response: null, error: null }]);
     setRunning(true);
 
     const controller = new AbortController();
@@ -57,7 +84,7 @@ export function useAgentStream() {
       const res = await fetch("/api/agent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question }),
+        body: JSON.stringify({ question, history }),
         signal: controller.signal,
       });
       if (!res.ok || !res.body) {
@@ -96,6 +123,11 @@ export function useAgentStream() {
   }, []);
 
   const cancel = useCallback(() => abortRef.current?.abort(), []);
+  /** 새 대화: 이전 질문의 조건을 더 이상 이어 받지 않는다. */
+  const reset = useCallback(() => {
+    abortRef.current?.abort();
+    setTurns([]);
+  }, []);
 
-  return { turns, running, ask, cancel };
+  return { turns, running, ask, cancel, reset };
 }
