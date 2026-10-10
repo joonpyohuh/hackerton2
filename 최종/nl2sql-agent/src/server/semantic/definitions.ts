@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DICTIONARY_DEFINITIONS } from "./dictionary";
 
 export const definitionSchema = z.object({
   id: z.string().regex(/^[a-z][a-z0-9_]{2,63}$/),
@@ -23,7 +24,7 @@ export type Definition = z.infer<typeof definitionSchema>;
 export type StoredDefinition = Definition & { version: number };
 
 const d = (value: Definition): Definition => value;
-export const SEED_DEFINITIONS: Definition[] = [
+const BASE_SEED_DEFINITIONS: Definition[] = [
   d({
     id: "signup_customers", kind: "metric", name: "가입 고객", aliases: ["가입자 수", "전체 가입자", "전체 가입 고객"],
     description: "선택한 가입 코호트의 고유 고객 수.", tables: ["analytics.user_dim"], columns: ["user_dim.user_key", "user_dim.signup_date"], joins: [],
@@ -231,6 +232,8 @@ export const SEED_DEFINITIONS: Definition[] = [
     missing: "장르 연결이 없거나 분모 0이면 선호 장르 없음.", caveat: "다중 장르 균등 배분은 분석상 가정이다. 장르 없는 콘텐츠는 분모에서 제외한다. 특정 월 선호 장르는 날짜별 콘텐츠 기록이 없어 계산 불가.", status: "ready",
   }),
 ];
+
+export const SEED_DEFINITIONS: Definition[] = [...BASE_SEED_DEFINITIONS, ...DICTIONARY_DEFINITIONS];
 
 export function renderDefinition(item: StoredDefinition): string {
   return [
