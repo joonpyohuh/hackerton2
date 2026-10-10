@@ -10,6 +10,11 @@ const nextConfig: NextConfig = {
   },
   cacheComponents: true,
   partialPrefetching: true,
+  // Git 빌드의 한글 경로에서 Turbopack source-map이 패닉한다. 배포는 Next 내장 Webpack을 사용한다.
+  webpack(config) {
+    config.module.rules.push({ test: /globals\.css$/, enforce: "pre", use: ["@tailwindcss/turbopack"] });
+    return config;
+  },
   turbopack: {
     rules: {
       "*.css": {

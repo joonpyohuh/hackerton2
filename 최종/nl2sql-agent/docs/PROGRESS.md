@@ -12,6 +12,7 @@
 - 초기 분석가 계정: 비공개 로컬 파일 `.workspace-owner.local.json`. 마케터 체험 계정: `.workspace-check.local.json`. Git에 포함하지 않음.
 - GitHub 연결: joonpyohuh/hackerton2 main → Vercel nl2sql-agent, Root Directory `최종/nl2sql-agent`.
 - 제한: 기업 SSO·이메일 발송·다중 기업 분리·실시간 수집 미구현. 현재는 계정 발급 방식의 단일 워크스페이스.
+- Git 자동 배포 첫 실행에서 한글 경로의 Turbopack source-map 패닉을 확인. 배포 빌드를 Next 내장 Webpack으로 변경하고 기존 Tailwind 로더를 재사용해 새 의존성 없이 빌드 통과.
 
 규칙: 실제로 실행한 검증만 "통과"로 적는다. 실행하지 않은 항목은 "미실행"으로 남긴다.
 
