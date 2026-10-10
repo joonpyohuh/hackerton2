@@ -118,6 +118,7 @@ def test_ai_compares_all_targets_from_sql(client,monkeypatch):
     def answer(prompt,structured=False,transport=None):
         assert all(str(n) in prompt for n in (18991,8152,2571,929,4244,1638))
         assert '세 집단을 비교' in prompt
+        assert 'Markdown 표' in prompt
         return '푸시 도달 고객 기준 T1이 가장 큽니다.'
     monkeypatch.setattr(ai,'call',answer)
     try:
