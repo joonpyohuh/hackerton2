@@ -4,12 +4,13 @@
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'nl2sql_reader') THEN
-    CREATE ROLE nl2sql_reader LOGIN;
+    CREATE ROLE nl2sql_reader LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE
+      NOINHERIT NOREPLICATION NOBYPASSRLS CONNECTION LIMIT 10;
   END IF;
 END $$;
 
-ALTER ROLE nl2sql_reader WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS
-  CONNECTION LIMIT 10 PASSWORD :'reader_password';
+-- Neon lets the database owner set a role password, but restricts altering role flags.
+ALTER ROLE nl2sql_reader WITH PASSWORD :'reader_password';
 
 -- 세션 기본값: 읽기 전용 트랜잭션, 실행 시간 제한, analytics만 보이는 search_path
 ALTER ROLE nl2sql_reader SET default_transaction_read_only = on;
