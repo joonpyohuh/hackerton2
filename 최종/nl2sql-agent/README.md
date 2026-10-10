@@ -18,7 +18,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-`.env.local`에 OpenAI 키, 생성·검증 모델, `DATABASE_URL_READONLY`, `ALLOWED_SCHEMAS`를 설정합니다. 시맨틱 저장소를 준비하려면 관리자 DB URL을 `DATABASE_URL_ADMIN` 또는 `DATABASE_URL_UNPOOLED`로 제공하고 `npm run semantic:setup`을 실행합니다. 이 명령은 `db/migrations/003_semantic.sql`을 적용하고 초기 정의 12개를 적재하며, 제한된 앱 계정의 `DATABASE_URL_APP`과 `SEMANTIC_ADMIN_TOKEN`을 `.env.local`에 기록합니다. 재실행하면 앱 계정 비밀번호가 바뀌므로 배포 환경 변수도 갱신해야 합니다. 관리자 DB URL과 `.env.local`은 저장소에 올리지 마세요.
+`.env.local`에 OpenAI 키, 생성·검증 모델, `DATABASE_URL_READONLY`, `ALLOWED_SCHEMAS`를 설정합니다. 시맨틱 저장소를 준비하려면 관리자 DB URL을 `DATABASE_URL_ADMIN` 또는 `DATABASE_URL_UNPOOLED`로 제공하고 `npm run semantic:setup`을 실행합니다. 이 명령은 `db/migrations/003_semantic.sql`을 적용하고 초기 정의 12개를 적재하며, 제한된 앱 계정의 `DATABASE_URL_APP`과 `SEMANTIC_ADMIN_TOKEN`을 `.env.local`에 기록합니다. Neon에서는 앱 계정이 연결 풀러 주소를 사용합니다. 재실행하면 앱 계정 비밀번호가 바뀌므로 배포 환경 변수도 갱신해야 합니다. 관리자 DB URL과 `.env.local`은 저장소에 올리지 마세요.
 
 `AGENT_MODE=live`에서 실제 LLM·DB·검색·실행 로그가 작동합니다. `mock`은 화면 확인용 예시 응답입니다.
 

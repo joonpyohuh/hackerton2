@@ -20,6 +20,11 @@ const password = randomBytes(24).toString("hex");
 const appUrl = new URL(adminUrl);
 appUrl.username = "nl2sql_app";
 appUrl.password = password;
+if (appUrl.hostname.endsWith(".neon.tech") && !appUrl.hostname.split(".")[0].endsWith("-pooler")) {
+  const parts = appUrl.hostname.split(".");
+  parts[0] += "-pooler";
+  appUrl.hostname = parts.join(".");
+}
 const adminToken = local.SEMANTIC_ADMIN_TOKEN || randomBytes(32).toString("hex");
 const ssl = /@(127\.0\.0\.1|localhost)[:/]/.test(adminUrl) ? false : { rejectUnauthorized: false };
 const admin = new Client({ connectionString: adminUrl, ssl });

@@ -107,9 +107,9 @@ export function getSemanticStore(url: string): SemanticStore {
   if (existing?.url === url) return existing.store;
   const pool = new Pool({
     connectionString: url,
-    max: 4,
+    max: 1,
     connectionTimeoutMillis: 5_000,
-    idleTimeoutMillis: 30_000,
+    idleTimeoutMillis: 1_000,
     ssl: /@(127\.0\.0\.1|localhost)[:/]/.test(url) ? false : { rejectUnauthorized: false },
     application_name: "nl2sql-agent-semantic",
   });
