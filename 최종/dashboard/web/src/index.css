@@ -1,0 +1,69 @@
+@import "tailwindcss";
+
+/* Same token set as ../index.html so the two pages read as one system. */
+:root {
+  color-scheme: light;
+  --bg: #ffffff; --surface: #f6fafd; --ink: #0f172a; --ink-2: #334155; --muted: #64748b;
+  --hair: #dbe4ee; --axis: #b8c6d4; --bar: #0f172a; --bar-2: #b8c6d4;
+  --accent: #0284c7; --accent-wash: rgba(2, 132, 199, .08);
+  /* importance: red = 매우 중요, orange = 중요, yellow = 참고 */
+  --imp-high: #dc2626; --imp-mid: #f97316; --imp-low: #eab308;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0a1120; --surface: #111b2d; --ink: #f1f5f9; --ink-2: #cbd5e1; --muted: #9aa8bc;
+    --hair: #1d2a3f; --axis: #334155; --bar: #e2e8f0; --bar-2: #44536b;
+    --accent: #38bdf8; --accent-wash: rgba(56, 189, 248, .14);
+    --imp-high: #f87171; --imp-mid: #fb923c; --imp-low: #facc15;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0a1120; --surface: #111b2d; --ink: #f1f5f9; --ink-2: #cbd5e1; --muted: #9aa8bc;
+  --hair: #1d2a3f; --axis: #334155; --bar: #e2e8f0; --bar-2: #44536b;
+  --accent: #38bdf8; --accent-wash: rgba(56, 189, 248, .14);
+  --imp-high: #f87171; --imp-mid: #fb923c; --imp-low: #facc15;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-muted: var(--muted);
+  --color-hair: var(--hair);
+  --color-axis: var(--axis);
+  --color-bar: var(--bar);
+  --color-bar-2: var(--bar-2);
+  --color-accent: var(--accent);
+  --color-accent-wash: var(--accent-wash);
+  --color-imp-high: var(--imp-high);
+  --color-imp-mid: var(--imp-mid);
+  --color-imp-low: var(--imp-low);
+  --font-sans: "Pretendard", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Consolas, monospace;
+}
+
+html, body { background: var(--bg); color: var(--ink); }
+body {
+  font-family: var(--font-sans);
+  font-size: 15px; line-height: 1.65; letter-spacing: -0.01em;
+  -webkit-font-smoothing: antialiased; word-break: keep-all;
+}
+.num { font-variant-numeric: tabular-nums; }
+.eyebrow { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+::selection { background: var(--accent-wash); }
+
+input[type=date], select {
+  font: inherit; font-size: 14px; color: var(--ink); background: transparent;
+  border: 0; border-bottom: 1px solid var(--axis); padding: 3px 2px; border-radius: 0;
+}
+input[type=date]:focus, select:focus { outline: none; border-bottom-color: var(--ink); }
+input[type=range] { accent-color: var(--ink); }
+:focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; }
+
+@keyframes march { to { stroke-dashoffset: -24; } }
+.edge-ai { animation: march 1.2s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .edge-ai { animation: none; } }
+@keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(300%); } }

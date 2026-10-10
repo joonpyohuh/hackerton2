@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Journey Dashboard</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/static/pretendard.min.css">
+<style>
+:root {
+  color-scheme: light;
+  --bg: #ffffff;
+  --surface: #f6fafd;
+  --ink: #0f172a;
+  --ink-2: #334155;
+  --muted: #64748b;
+  --hair: #dbe4ee;
+  --axis: #b8c6d4;
+  --bar: #0f172a;
+  --bar-2: #b8c6d4;
+  --accent: #0284c7;
+  --accent-wash: rgba(2, 132, 199, .08);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0a1120; --surface: #111b2d; --ink: #f1f5f9; --ink-2: #cbd5e1; --muted: #9aa8bc;
+    --hair: #1d2a3f; --axis: #334155; --bar: #e2e8f0; --bar-2: #44536b;
+    --accent: #38bdf8; --accent-wash: rgba(56, 189, 248, .14);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0a1120; --surface: #111b2d; --ink: #f1f5f9; --ink-2: #cbd5e1; --muted: #9aa8bc;
+  --hair: #1d2a3f; --axis: #334155; --bar: #e2e8f0; --bar-2: #44536b;
+  --accent: #38bdf8; --accent-wash: rgba(56, 189, 248, .14);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: "Pretendard", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 14px; line-height: 1.6; letter-spacing: -0.01em;
+  -webkit-font-smoothing: antialiased; word-break: keep-all;
+}
+.num, td.n, .tick { font-variant-numeric: tabular-nums; }
+.wrap { max-width: 1280px; margin: 0 auto; padding: 0 40px; }
+.app-nav { position: sticky; top: 0; z-index: 20; background: var(--ink); color: #fff; }
+.app-nav .wrap { display: flex; align-items: center; gap: 8px; padding-top: 8px; padding-bottom: 8px; }
+.app-nav strong { font-size: 12px; letter-spacing: .04em; margin-right: 12px; }
+.app-nav a { color: #dbeafe; text-decoration: none; font-size: 12px; padding: 6px 10px; border-radius: 5px; }
+.app-nav a:hover, .app-nav a[aria-current="page"] { background: #ffffff24; color: #fff; }
+
+/* ── masthead ── */
+header.mast { border-bottom: 1px solid var(--ink); padding: 40px 0 20px; }
+.mast .row { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; flex-wrap: wrap; }
+.eyebrow { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+h1 { font-size: 34px; font-weight: 700; letter-spacing: -0.035em; line-height: 1.15; margin-top: 8px; }
+.mast .meta { font-size: 12px; color: var(--ink-2); text-align: right; line-height: 1.7; }
+
+/* ── filter bar ── */
+.filters { position: sticky; top: 0; z-index: 10; background: var(--bg); border-bottom: 1px solid var(--hair); }
+.filters .wrap { display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: center; padding-top: 14px; padding-bottom: 14px; }
+.f { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-2); }
+.f label { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+input[type=date], select {
+  font: inherit; font-size: 13px; color: var(--ink); background: transparent;
+  border: 0; border-bottom: 1px solid var(--axis); padding: 3px 2px; border-radius: 0;
+}
+input[type=date]:focus, select:focus { outline: none; border-bottom-color: var(--ink); }
+.seg { display: inline-flex; border: 1px solid var(--axis); }
+.seg button { font: inherit; font-size: 12px; background: none; border: 0; color: var(--ink-2); padding: 4px 10px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--axis); }
+.seg button.on { background: var(--ink); color: var(--bg); }
+.reset { font: inherit; font-size: 12px; background: none; border: 0; color: var(--muted); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; margin-left: auto; }
+
+/* ── sections ── */
+section { padding: 56px 0 8px; }
+.sh { display: grid; grid-template-columns: 64px 1fr; gap: 0 24px; margin-bottom: 28px; align-items: baseline; }
+.sh .no { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; letter-spacing: .06em; }
+.sh h2 { font-size: 20px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.3; }
+.sh p { grid-column: 2; font-size: 13px; color: var(--ink-2); margin-top: 6px; max-width: 720px; line-height: 1.65; }
+.body { margin-left: 88px; }
+
+/* ── hero KPIs ── */
+.hero { display: grid; grid-template-columns: repeat(4, 1fr); border-bottom: 1px solid var(--hair); }
+.hero > div { padding: 28px 24px 24px 0; }
+.hero > div + div { padding-left: 24px; border-left: 1px solid var(--hair); }
+.hero .k { font-size: 12px; color: var(--ink-2); letter-spacing: -0.005em; }
+.hero .v { font-size: 44px; font-weight: 600; letter-spacing: -0.045em; line-height: 1.1; margin-top: 10px; }
+.hero .v small { font-size: 20px; font-weight: 500; letter-spacing: -0.02em; margin-left: 2px; }
+.hero .s { font-size: 12px; color: var(--muted); margin-top: 8px; }
+.hero .v.acc { color: var(--accent); }
+
+/* ── KPI grid ── */
+.kgrid { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--ink); }
+.kgrid > div { padding: 18px 20px 20px 0; border-bottom: 1px solid var(--hair); }
+.kgrid > div:not(:nth-child(4n+1)) { padding-left: 20px; border-left: 1px solid var(--hair); }
+.kgrid .k { font-size: 12px; color: var(--ink-2); }
+.kgrid .v { font-size: 26px; font-weight: 600; letter-spacing: -0.035em; margin-top: 6px; line-height: 1.2; }
+.kgrid .v small { font-size: 14px; font-weight: 500; }
+.kgrid .s { font-size: 11px; color: var(--muted); margin-top: 4px; }
+.kgrid .tri { display: flex; gap: 18px; margin-top: 6px; }
+.kgrid .tri span { font-size: 11px; color: var(--muted); display: block; }
+.kgrid .tri b { font-size: 20px; font-weight: 600; letter-spacing: -0.03em; }
+
+/* ── funnel ── */
+.funnel { border-top: 1px solid var(--ink); }
+.fr { display: grid; grid-template-columns: 180px 1fr 96px 120px; gap: 20px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--hair); position: relative; }
+.fr .lab b { display: block; font-size: 14px; font-weight: 600; letter-spacing: -0.02em; }
+.fr .lab span { font-size: 11px; color: var(--muted); }
+.fr .track { height: 22px; position: relative; }
+.fr .fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--bar); border-radius: 0 4px 4px 0; }
+.fr .cnt { font-size: 15px; font-weight: 600; text-align: right; letter-spacing: -0.02em; }
+.fr .cnt span { display: block; font-size: 11px; color: var(--muted); font-weight: 400; }
+.fr .step { font-size: 12px; color: var(--ink-2); text-align: right; }
+.fr .step b { font-size: 15px; font-weight: 600; color: var(--ink); letter-spacing: -0.02em; }
+.fr.btl .fill { background: var(--accent); }
+.fr.btl .step b, .fr.btl .step { color: var(--accent); }
+.flag { font-size: 10px; letter-spacing: .1em; border: 1px solid currentColor; padding: 1px 5px; margin-left: 6px; vertical-align: 2px; }
+
+/* ── tables ── */
+.tabs { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-bottom: 16px; }
+.tabs button { font: inherit; font-size: 13px; background: none; border: 0; padding: 2px 0; color: var(--muted); cursor: pointer; border-bottom: 1px solid transparent; }
+.tabs button.on { color: var(--ink); border-bottom-color: var(--ink); font-weight: 600; }
+table { width: 100%; border-collapse: collapse; }
+th { font-size: 11px; font-weight: 500; color: var(--muted); text-align: left; padding: 8px 12px 8px 0; border-bottom: 1px solid var(--ink); letter-spacing: .02em; }
+td { padding: 9px 12px 9px 0; border-bottom: 1px solid var(--hair); font-size: 13px; vertical-align: middle; }
+th.n, td.n { text-align: right; }
+.mbar { display: flex; align-items: center; gap: 10px; }
+.mbar i { display: block; height: 8px; background: var(--bar); border-radius: 0 3px 3px 0; min-width: 1px; }
+.mbar em { font-style: normal; font-variant-numeric: tabular-nums; min-width: 44px; text-align: right; }
+.mbar.hi i { background: var(--accent); }
+.mbar.hi em { color: var(--accent); font-weight: 600; }
+td.dim { color: var(--muted); }
+
+/* ── behavior ── */
+.legend { display: flex; gap: 20px; font-size: 12px; color: var(--ink-2); margin-bottom: 12px; }
+.legend i { display: inline-block; width: 10px; height: 10px; margin-right: 6px; vertical-align: -1px; }
+.br { display: grid; grid-template-columns: 200px 1fr 64px; gap: 16px; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--hair); }
+.br .nm { font-size: 12px; }
+.br .nm span { display: block; font-size: 10px; color: var(--muted); letter-spacing: .02em; }
+.br .bars { display: grid; gap: 2px; }
+.br .bars i { display: block; height: 7px; border-radius: 0 3px 3px 0; }
+.br .lift { text-align: right; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.br .lift.hi { color: var(--accent); }
+
+/* ── trend ── */
+.chart { position: relative; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--bg); font-size: 12px; padding: 7px 10px; line-height: 1.5; white-space: nowrap; opacity: 0; transition: opacity .1s; z-index: 5; }
+
+/* ── targets ── */
+.targets { border-top: 1px solid var(--ink); }
+.tg { display: grid; grid-template-columns: 56px 1.25fr 1fr; gap: 0 32px; padding: 28px 0 32px; border-bottom: 1px solid var(--hair); }
+.tg .pr { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.tg .pr b { display: block; font-size: 30px; font-weight: 600; color: var(--ink); letter-spacing: -0.04em; line-height: 1; margin-top: 4px; }
+.tg h3 { font-size: 18px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.35; }
+.tg .goal { font-size: 11px; color: var(--accent); letter-spacing: .04em; margin-bottom: 6px; }
+.tg .def { font-size: 13px; color: var(--ink-2); margin-top: 8px; line-height: 1.65; }
+.tg .nums { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 20px; }
+.tg .nums span { font-size: 11px; color: var(--muted); display: block; }
+.tg .nums b { font-size: 24px; font-weight: 600; letter-spacing: -0.035em; }
+.tg .nums b.acc { color: var(--accent); }
+.tg .side h4 { font-size: 11px; font-weight: 500; color: var(--muted); letter-spacing: .06em; margin: 0 0 8px; }
+.tg .side h4 + ol, .tg .side h4 + p { margin-bottom: 18px; }
+.tg ol { list-style: none; font-size: 13px; }
+.tg ol li { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; border-bottom: 1px solid var(--hair); }
+.tg ol li span { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 12px; }
+.tg .side p { font-size: 13px; color: var(--ink-2); }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 20px; }
+.btn { font: inherit; font-size: 12px; background: none; border: 1px solid var(--ink); color: var(--ink); padding: 6px 12px; cursor: pointer; }
+.btn.solid { background: var(--ink); color: var(--bg); }
+.btn:hover { background: var(--ink); color: var(--bg); }
+details { margin-top: 16px; }
+summary { font-size: 12px; color: var(--ink-2); cursor: pointer; list-style: none; }
+summary::before { content: "+ "; color: var(--muted); }
+details[open] summary::before { content: "− "; }
+pre { margin-top: 10px; font-family: ui-monospace, "SF Mono", Consolas, monospace; font-size: 11.5px; line-height: 1.6; background: var(--surface); border: 1px solid var(--hair); padding: 14px 16px; overflow-x: auto; color: var(--ink-2); letter-spacing: 0; }
+
+/* ── notes ── */
+.notes { display: grid; grid-template-columns: 1fr 1fr; gap: 0 40px; border-top: 1px solid var(--ink); }
+.notes dl { display: grid; grid-template-columns: 150px 1fr; font-size: 12px; }
+.notes dt, .notes dd { padding: 9px 0; border-bottom: 1px solid var(--hair); }
+.notes dt { font-weight: 600; letter-spacing: -0.01em; }
+.notes dd { color: var(--ink-2); line-height: 1.6; }
+.notes code { font-family: ui-monospace, Consolas, monospace; font-size: 11px; }
+footer { padding: 48px 0 64px; font-size: 11px; color: var(--muted); }
+
+@media (max-width: 900px) {
+  .wrap { padding: 0 16px; }
+  .body { margin-left: 0; }
+  .sh { grid-template-columns: 40px 1fr; gap: 0 12px; }
+  .hero, .kgrid { grid-template-columns: 1fr 1fr; }
+  .hero > div:nth-child(3) { border-left: 0; padding-left: 0; }
+  .kgrid > div:nth-child(2n+1) { border-left: 0 !important; padding-left: 0 !important; }
+  .kgrid > div:nth-child(2n) { padding-left: 20px; border-left: 1px solid var(--hair); }
+  .hero .v { font-size: 32px; }
+  .fr { grid-template-columns: 1fr 80px; }
+  .fr .track { grid-column: 1 / -1; grid-row: 2; }
+  .fr .step { grid-column: 1 / -1; text-align: left; }
+  .tg { grid-template-columns: 1fr; gap: 16px; }
+  .notes { grid-template-columns: 1fr; }
+  .br { grid-template-columns: 120px 1fr 48px; }
+  .tablewrap { overflow-x: auto; }
+  h1 { font-size: 26px; }
+}
+
+/* AI strategy panel — original dashboard layout retained */
+.ai-toolbar {display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin:24px 0 0;padding:16px 20px;background:var(--accent-wash);border:1px solid var(--hair);}
+.ai-toolbar strong {font-size:13px}.ai-toolbar small {display:block;color:var(--muted);font-size:11px}
+.ai-events {display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.ai-target-chip {font:inherit;text-align:left;background:var(--surface);color:var(--ink);border:1px solid var(--hair);padding:9px 12px;cursor:pointer;font-size:11px}
+.ai-target-chip:hover {border-color:var(--accent);color:var(--accent)}
+.ai-newbtn {font:inherit;border:1px solid var(--ink);background:var(--ink);color:var(--bg);padding:8px 12px;cursor:pointer;font-size:12px}
+.ai-dock {position:fixed;right:24px;bottom:24px;background:var(--ink);color:var(--bg);border:0;z-index:100;padding:13px 18px;font:600 13px inherit;cursor:pointer;box-shadow:0 5px 20px #0002}
+.ai-panel {position:fixed;right:0;top:0;height:100dvh;width:min(475px,100vw);background:var(--surface);border-left:1px solid var(--hair);z-index:101;box-shadow:-12px 0 50px #0002;overflow-y:auto;padding:25px;transform:translateX(105%);transition:transform .2s ease}
+.ai-panel.open {transform:translateX(0)}.ai-panel header {display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid var(--hair);padding-bottom:16px;margin-bottom:16px}
+.ai-panel h2 {font-size:19px}.ai-panel h3 {font-size:13px;margin:17px 0 9px}
+.ai-panel .ai-close {border:1px solid var(--hair);background:transparent;color:var(--ink);font-size:20px;cursor:pointer;padding:2px 9px}
+.ai-panel select,.ai-panel input,.ai-panel textarea{width:100%;background:var(--bg);border:1px solid var(--hair);color:var(--ink);padding:9px;font-size:12px;margin-bottom:9px;font-family:inherit}
+.ai-panel textarea {min-height:74px;resize:vertical}
+.ai-panel label {display:block;font-size:11px;color:var(--ink-2);margin:7px 0}
+.ai-panel button.ai-action {font:inherit;font-size:12px;background:var(--ink);color:var(--bg);border:1px solid var(--ink);padding:9px 12px;cursor:pointer;margin:4px 5px 4px 0}
+.ai-panel button.ai-action:disabled {opacity:.5;cursor:wait}.ai-panel button.secondary {background:transparent;color:var(--ink)}
+.ai-status {font-size:11px;color:var(--ink-2);padding:8px 10px;background:var(--bg);margin:10px 0;word-break:break-word}
+.ai-status.error {color:#bf3a38}.ai-result {max-height:460px;overflow-y:auto;font-size:12px;white-space:pre-wrap;word-break:break-word}
+.ai-result-head {font-size:15px;font-weight:700;color:var(--accent);margin:12px 0}.ai-result-head small {display:block;color:var(--muted);font-weight:400;font-size:10px}
+.ai-result-row {border-bottom:1px solid var(--hair);padding:10px 0}.ai-result-row strong {color:var(--ink)}.ai-result-row p {color:var(--ink-2);margin:4px 0}
+.ai-answer {padding:10px;min-height:45px;background:var(--bg);white-space:pre-wrap;font-size:12px;line-height:1.7}
+.ai-history-item {padding:9px 0;border-bottom:1px solid var(--hair);font-size:11px}.ai-history-item small {display:block;color:var(--muted);margin-top:4px}
+.ai-safe {font-size:10px;color:var(--muted);line-height:1.6;margin-top:12px}
+@media(max-width:520px){.ai-dock{right:12px;bottom:12px}.ai-panel{padding:18px}}
+</style>
+</head>
+<body>
+
+<nav class="app-nav" aria-label="서비스 이동">
+  <div class="wrap"><strong>OTT PULSE</strong><a href="/" aria-current="page">대시보드</a><a href="/insights">지표 연관 지도</a><a href="https://nl2sql-agent-joonpyohuhs-projects.vercel.app/">NL2SQL 분석</a></div>
+</nav>
+
+<header class="mast">
+  <div class="wrap">
+    <div class="row">
+      <div>
+        <div class="eyebrow">OTT A사 · 신규 가입 고객 여정</div>
+        <h1>가입부터 지속 시청까지,<br>어디서 빠져나가는가</h1>
+      </div>
+      <div><div class="meta" id="meta"></div><div class="meta"><a href="/insights" style="color:var(--accent);text-underline-offset:3px">지표 연관 지도 →</a></div></div>
+    </div>
+  </div>
+</header>
+
+<div class="filters">
+  <div class="wrap">
+    <div class="f"><label>가입일</label>
+      <input type="date" id="from"> <span>—</span> <input type="date" id="to">
+    </div>
+    <div class="seg" id="presets">
+      <button data-p="all" class="on">전체</button><button data-p="feb">2월</button><button data-p="mar">3월</button><button data-p="last14">최근 14일</button>
+    </div>
+    <div class="f"><label>기기</label><select id="dev"></select></div>
+    <div class="f"><label>연령</label><select id="age"></select></div>
+    <div class="f"><label>성별코드</label><select id="gen"><option value="all">전체</option><option value="0">0</option><option value="1">1</option><option value="2">2</option></select></div>
+    <div class="f"><label>푸시</label><select id="push"><option value="all">전체</option><option value="1">수신 가능</option><option value="0">불가</option></select></div>
+    <button class="reset" id="reset">초기화</button>
+  </div>
+</div>
+
+<main class="wrap">
+
+  <div class="hero" id="hero"></div>
+
+  <section>
+    <div class="sh"><span class="no">01</span><h2>고객 여정 퍼널</h2>
+      <p>각 단계는 가입 고객 전체를 분모로 독립 집계합니다. 오른쪽 숫자는 직전 단계 대비 비율이며, 가장 낮은 구간을 병목으로 표시합니다.</p></div>
+    <div class="body"><div class="funnel" id="funnel"></div></div>
+  </section>
+
+  <section>
+    <div class="sh"><span class="no">02</span><h2>필수 KPI</h2>
+      <p>결제 후 지표(활성화·유지·실패)는 D0~D30 첫 결제 고객만 분모로 둡니다. 시청 데이터가 D60까지라 D+28 관측이 보장되는 범위입니다.</p></div>
+    <div class="body"><div class="kgrid" id="kgrid"></div></div>
+  </section>
+
+  <section>
+    <div class="sh"><span class="no">03</span><h2>세그먼트별 전환과 유지</h2>
+      <p>관점을 바꿔 어느 고객군이 전환·유지에서 앞서거나 뒤처지는지 봅니다. 열마다 최댓값을 강조합니다.</p></div>
+    <div class="body">
+      <div class="tabs" id="dims"></div>
+      <div class="tablewrap"><table id="segtable"></table></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sh"><span class="no">04</span><h2>결제 고객은 결제 전에 무엇을 했나</h2>
+      <p>첫 결제일까지(결제일 포함)의 행동 경험률을 D+30 결제 고객과 미결제 고객으로 나눠 비교합니다. Lift = 결제 ÷ 미결제.</p></div>
+    <div class="body">
+      <div class="legend"><span><i style="background:var(--bar)"></i>D+30 결제 고객</span><span><i style="background:var(--bar-2)"></i>미결제 고객</span></div>
+      <div id="behav"></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sh"><span class="no">05</span><h2>가입일별 D+30 결제 전환율</h2>
+      <p>가입 코호트별 추이. 막대 위에 올리면 가입 수와 전환율이 보입니다.</p></div>
+    <div class="body"><div class="chart" id="trend"><div class="tip" id="tip"></div></div></div>
+  </section>
+
+  <section>
+    <div class="sh"><span class="no">06</span><h2>마케팅 타깃</h2>
+      <p>병목 구간에서 도출한 3개 고객군. 필터가 그대로 적용되며, SQL 조건과 동일 기준으로 집계합니다. 푸시 도달은 <code>push_opt_in_current = 1</code>만 셉니다.</p></div>
+    <div class="body"><div class="ai-toolbar"><div><strong>AI Marketing Strategist</strong><small>SQL 집계 → GPT 전략 추천 → 추천 저장. 실제 캠페인 발송은 지원하지 않습니다.</small></div><button class="ai-newbtn" type="button" onclick="window.OTT_AI.open('T1')">AI 전략 열기 ↗</button></div><div class="ai-events" id="aiEvents" aria-live="polite"></div><div class="targets" id="targets"></div></div>
+  </section>
+
+  <section>
+    <div class="sh"><span class="no">07</span><h2>지표 정의와 데이터 한계</h2></div>
+    <div class="body"><div class="notes">
+      <dl>
+        <dt>D+N 결제 전환율</dt><dd><code>payment_order = 1 AND relative_signup_day BETWEEN 0 AND N</code> 고객 ÷ 가입 고객</dd>
+        <dt>탐색 고객</dt><dd>D0~D30 <code>behavior_fact</code> 1건 이상</dd>
+        <dt>이용권 관심 고객</dt><dd>D0~D30 <code>VOUCHER_VIEW</code> 경험</dd>
+        <dt>시청 활성화율 D+N</dt><dd>첫 결제일 ~ +N일 사이 <code>watch_daily_fact</code> 존재 고객 ÷ D0~D30 첫 결제 고객</dd>
+        <dt>시청 유지율</dt><dd>첫 결제 후 D+22~D+28 시청 고객 ÷ D0~D30 첫 결제 고객</dd>
+        <dt>초기 시청 실패</dt><dd>첫 결제 후 D+7까지 시청 기록 없음</dd>
+      </dl>
+      <dl>
+        <dt>VOD·영화·LIVE 이용률</dt><dd>D0~D60 해당 <code>channel_type</code> 시청 고객 ÷ 가입 고객</dd>
+        <dt>주 시청 장르</dt><dd>D0~D60 시청시간 원천값 합 1위 장르. 다중 장르 콘텐츠는 각 장르에 모두 귀속(합계 &gt; 전체)</dd>
+        <dt>관측 한계</dt><dd>시청 D60·결제 D90까지만 제공. 결제 후 지표는 D30 이내 결제자로 한정해 절단 편향을 막음</dd>
+        <dt>퍼널 비중첩</dt><dd>결제 고객 중 이용권 페이지 미방문 고객이 있어 단계가 엄격한 부분집합은 아님</dd>
+        <dt>푸시 상태</dt><dd>가입 당시가 아닌 데이터 추출 시점 기준</dd>
+        <dt>금액</dt><dd>통화 혼재(<code>currency_type_id</code>)로 매출 합산 지표는 제외</dd>
+      </dl>
+    </div></div>
+  </section>
+
+  <footer>BI Hackathon 2026 · 문제 1 · 데이터: user_dim, behavior_fact, payment_fact, watch_daily_fact, user_content_summary, content_dim, content_genre_bridge</footer>
+</main>
+
+<button id="aiDock" class="ai-dock" type="button" aria-expanded="false" aria-controls="aiPanel">✦ GPT 마케팅 AI</button>
+<aside id="aiPanel" class="ai-panel" aria-label="GPT 마케팅 전략 어시스턴트" aria-hidden="true">
+  <header><div><div class="eyebrow">AI MARKETING STRATEGIST</div><h2>GPT 전략 어시스턴트</h2><p style="font-size:11px;color:var(--muted)">선택한 타깃의 SQL 분석 데이터를 해석합니다.</p></div><button id="aiClose" class="ai-close" aria-label="패널 닫기" type="button">×</button></header>
+  <div id="aiStatus" class="ai-status" role="status">연결 확인 중…</div>
+  <div id="aiUpdated" style="font-size:10px;color:var(--muted);margin:8px 0"></div>
+  <div id="aiSummary" style="font-size:12px;line-height:1.6;margin:10px 0"></div>
+  <label for="aiToken">관리자 토큰 (이 브라우저 메모리에만 보관, 새로고침 시 소멸)</label>
+  <input id="aiToken" type="password" autocomplete="off" placeholder=".env 파일의 ADMIN_TOKEN" />
+  <label for="aiTarget">마케팅 타깃</label>
+  <select id="aiTarget"><option value="T1">T1 · 이용권 관심 후 미결제</option><option value="T2">T2 · 결제 후 첫 시청 실패</option><option value="T3">T3 · 초기 시청 후 유지 실패</option></select>
+  <button id="aiGenerate" class="ai-action" type="button">GPT 전략 생성 · 저장</button>
+  <button id="aiSql" class="ai-action secondary" type="button">실행 SQL 조회</button>
+  <div class="ai-result" id="aiResult" aria-live="polite"><div class="ai-safe">OpenAI 키가 없다면 라이브 추천은 동작하지 않습니다. 임의의 AI 결과를 만들지 않습니다.</div></div>
+  <h3>GPT에게 추가 질문</h3>
+  <textarea id="aiQuestion" placeholder="예: 이 타깃에게 효과를 검증할 A/B 테스트를 설계해줘"></textarea>
+  <button id="aiAsk" class="ai-action" type="button">질문 보내기</button>
+  <div id="aiAnswer" class="ai-answer" aria-live="polite">타깃을 선택하고 질문을 입력하세요.</div>
+  <h3>저장된 전략</h3><button id="aiReload" class="ai-action secondary" type="button">추천 이력 불러오기</button>
+  <div id="aiHistory" class="ai-history-item">관리자 토큰 입력 후 조회 가능합니다.</div>
+  <h3>데이터 스냅샷</h3><p style="font-size:11px;color:var(--ink-2)">새 데이터로 build_data.py를 실행한 뒤, 서버의 data.js를 재적재하세요.</p>
+  <button id="aiRefreshData" class="ai-action secondary" type="button">서버 data.js 재적재</button>
+  <p class="ai-safe">익명화 이력 데이터 시연용. 추천은 마케팅 담당자 승인용이며 자동 발송하지 않습니다. 키·고객 목록을 GPT로 보내지 않습니다.</p>
+</aside>
+<script src="data.js"></script>
+<script src="app.js"></script>
+<script src="ai.js"></script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+.env
+.venv
+.vercel
+runtime
+__pycache__
+.pytest_cache
+.git
+web/node_modules

@@ -1,0 +1,26 @@
+# Local secrets and credentials
+.env
+.env.*
+!.env.example
+
+# Dependencies, local environments, and generated output
+node_modules/
+.venv/
+.next/
+dist/
+build/
+out/
+.vercel/
+runtime/
+coverage/
+__pycache__/
+.pytest_cache/
+*.pyc
+*.tsbuildinfo
+next-env.d.ts
+
+# Local database files
+*.sqlite
+*.sqlite3
+*.sqlite-*
+*.db

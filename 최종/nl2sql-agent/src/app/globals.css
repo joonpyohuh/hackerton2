@@ -1,0 +1,78 @@
+@import "tailwindcss";
+
+/*
+ * 팔레트: 따뜻한 중립색과 대비가 높은 하늘색 강조색.
+ * 강조색은 진행 단계와 상호작용 상태를 분명하게 표시한다.
+ */
+:root {
+  --paper: #f6f5f2;
+  --surface: #eeede8;
+  --line: #dedcd6;
+  --mute: #74736f;
+  --sub: #555550;
+  --ink: #141414;
+  --accent: #0369a1;
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-line: var(--line);
+  --color-mute: var(--mute);
+  --color-sub: var(--sub);
+  --color-ink: var(--ink);
+  --color-accent: var(--accent);
+  --font-sans: var(--font-pretendard), system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.7;
+  letter-spacing: -0.01em;
+  word-break: keep-all; /* 한국어 어절 단위 줄바꿈 */
+  overflow-wrap: anywhere;
+  font-feature-settings: "ss06", "tnum" 0;
+}
+
+::selection {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+/* 한글 섹션 라벨: 한글은 넓은 자간에서 낱자가 흩어지므로 거의 기본 자간을 유지 */
+.label {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.6;
+  letter-spacing: 0.01em;
+  color: var(--mute);
+}
+
+.label.text-accent {
+  color: var(--accent);
+}
+
+/* 라틴 전용 라벨: 모노 대문자, 넓은 자간 */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.6;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+.pulse-dot {
+  animation: pulse-dot 1.1s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pulse-dot { animation: none; }
+}

@@ -1,0 +1,9 @@
+build_data.py
+runtime/
+.env
+.vercel/
+.venv/
+web/node_modules/
+web/src/
+tests/
+**/__pycache__/

@@ -1,0 +1,124 @@
+"""Whitelist-only SQL analytics; the same parameterized WHERE is reused everywhere."""
+import json
+from datetime import date, timedelta
+from .db import active, VOUCHER_BIT
+
+TARGETS = {
+ 'T1': {'name':'이용권 관심 후 미결제', 'goal':'첫 결제 전환', 'where':'(behavior_mask & :voucher_bit) != 0 AND NOT (first_payment_day BETWEEN 0 AND 30)',
+        'denom':'(behavior_mask & :voucher_bit) != 0', 'timing':'D+30 확정 후 (조기개입은 별도 기준 필요)'},
+ 'T2': {'name':'결제 후 첫 시청 실패', 'goal':'첫 시청 활성화', 'where':'first_payment_day BETWEEN 0 AND 30 AND activated7 = 0',
+        'denom':'first_payment_day BETWEEN 0 AND 30', 'timing':'첫 결제 D+8'},
+ 'T3': {'name':'초기 시청 후 지속 시청 미유지', 'goal':'재시청 활성화', 'where':'first_payment_day BETWEEN 0 AND 30 AND activated7 = 1 AND retained = 0',
+        'denom':'first_payment_day BETWEEN 0 AND 30 AND activated7 = 1', 'timing':'첫 결제 D+29'},
+}
+
+FILTERS = {'from_date','to_date','dev','age','gen','push'}
+
+def parse_filters(meta, filters):
+    filters = {k:v for k,v in (filters or {}).items() if v is not None and str(v)!=''}
+    extra=set(filters) - FILTERS
+    if extra: raise ValueError('Unsupported filters: '+','.join(sorted(extra)))
+    base=date.fromisoformat(meta['base_date'])
+    def as_day(s, default):
+        if not s: return default
+        d=(date.fromisoformat(str(s)) - base).days
+        if not (0 <= d <= 3660): raise ValueError('Date outside supported snapshot range')
+        return d
+    x={'from_day': as_day(filters.get('from_date'),0), 'to_day':as_day(filters.get('to_date'),3660)}
+    if x['from_day'] > x['to_day']: raise ValueError('from_date must be <= to_date')
+    for key in ('dev','age','gen','push'):
+        v=filters.get(key,'all')
+        if str(v) != 'all':
+            try: x[key]=int(v)
+            except: raise ValueError('Invalid '+key)
+            if not (0 <= x[key] <= (1 if key=='push' else 20)): raise ValueError('Invalid '+key)
+    x['voucher_bit']=VOUCHER_BIT
+    return x
+
+def base_where(params):
+    parts=['snapshot_id=:snapshot_id','signup_day BETWEEN :from_day AND :to_day']
+    cols={'dev':'device','age':'age','gen':'gender','push':'push'}
+    for k,v in cols.items():
+        if k in params: parts.append(v+'=:'+k)
+    return ' AND '.join(parts)
+
+def context(c, filters=None):
+    meta=active(c)
+    params=parse_filters(meta,filters)
+    params['snapshot_id']=meta['id']
+    return meta, params, base_where(params)
+
+def summary(c, target, filters=None):
+    if target not in TARGETS: raise ValueError('Unknown target')
+    meta,p,where=context(c,filters)
+    t=TARGETS[target]
+    wh=where+' AND ('+t['where']+')'
+    q=f'SELECT COUNT(*) AS n, COALESCE(SUM(push),0) AS reachable FROM customers WHERE {wh}'
+    row=c.execute(q,p).fetchone()
+    denom=c.execute(f'SELECT COUNT(*) FROM customers WHERE {where} AND ({t["denom"]})',p).fetchone()[0]
+    genres=c.execute(f'SELECT genre,COUNT(*) AS n FROM customers WHERE {wh} AND genre>=0 GROUP BY genre ORDER BY n DESC LIMIT 3',p).fetchall()
+    md=json.loads(meta['dictionaries_json'])
+    total=c.execute(f'SELECT COUNT(*) FROM customers WHERE {where}',p).fetchone()[0]
+    genre_arr=md.get('genres',[])
+    # Compare immutable snapshots; never compare with a fabricated baseline.
+    previous=c.execute('SELECT * FROM snapshots WHERE imported_at<? ORDER BY imported_at DESC LIMIT 1',
+                       (meta['imported_at'],)).fetchone()
+    change=None
+    if previous:
+        older=dict(previous)
+        older_p=parse_filters(older,filters)
+        older_p['snapshot_id']=older['id']
+        older_where=base_where(older_p)
+        prev=c.execute(f'SELECT COUNT(*) AS n, COALESCE(SUM(push),0) AS push FROM customers WHERE {older_where} AND ({t["where"]})',older_p).fetchone()
+        change={'previous_snapshot_id':older['id'],'previous_count':prev['n'],
+                'delta_count':row['n']-prev['n'],'previous_push':prev['push'],
+                'delta_push':row['reachable']-prev['push']}
+    return {'id':target,'name':t['name'],'goal':t['goal'],'timing':t['timing'],
+      'count':row['n'],'push_reachable':row['reachable'],'denominator':denom,
+      'rate_pct':round(100*row['n']/denom,2) if denom else None,
+      'selected_cohort_size':total,'change':change,
+      'top_genres':[{'name':genre_arr[r['genre']] if r['genre']<len(genre_arr) else 'UNKNOWN','customers':r['n']} for r in genres],
+      'snapshot_id':meta['id'],'source_note':'D+30 결제 코호트 및 D+60 시청 관측 제한. 장르는 사후 시청 결과이며 발송시점 개인화에 그대로 사용하지 말 것.'}
+
+def list_summaries(c,filters=None):
+    return {'snapshot':active(c)['id'], 'targets':[summary(c,t,filters) for t in TARGETS]}
+
+def sql_text(c,target,filters=None):
+    if target not in TARGETS: raise ValueError('Unknown target')
+    meta,p,where=context(c,filters)
+    query=f'SELECT user_key, signup_day, device, age, push FROM customers WHERE {where} AND ({TARGETS[target]["where"]}) ORDER BY user_key'
+    return {'sql':query,'parameters':p,'source':'SQLite snapshot customers (features generated by build_data.py)','target_id':target}
+
+def customers(c,target,filters=None,push_only=False,limit=100,offset=0):
+    if target not in TARGETS:raise ValueError('Unknown target')
+    if not (1 <= limit <= 50000 and 0 <= offset <= 500000):raise ValueError('Invalid pagination')
+    meta,p,where=context(c,filters)
+    p={**p,'limit':limit,'offset':offset}
+    clause=where+' AND ('+TARGETS[target]['where']+')'
+    if push_only:clause+=' AND push=1'
+    rows=c.execute(f'SELECT user_key,signup_day,device,age,push FROM customers WHERE {clause} ORDER BY user_key LIMIT :limit OFFSET :offset',p).fetchall()
+    total=c.execute(f'SELECT COUNT(*) FROM customers WHERE {clause}',p).fetchone()[0]
+    md=json.loads(meta['dictionaries_json'])
+    base=date.fromisoformat(meta['base_date'])
+    result=[{'user_key':r['user_key'],'signup_date':(base+timedelta(days=r['signup_day'])).isoformat(),
+             'signup_device_type':md['devices'][r['device']] if 0<=r['device']<len(md['devices']) else 'UNKNOWN',
+             'age_band':md['ages'][r['age']] if 0<=r['age']<len(md['ages']) else 'UNKNOWN',
+             'push_opt_in_current':r['push']} for r in rows]
+    return {'total':total,'rows':result,'target_id':target,'snapshot_id':meta['id']}
+
+def overview(c,filters=None):
+    meta,p,where=context(c,filters)
+    r=c.execute(f'''SELECT COUNT(*) n, SUM(CASE WHEN behavior_mask != 0 THEN 1 ELSE 0 END) explore,
+    SUM(CASE WHEN (behavior_mask & :voucher_bit) != 0 THEN 1 ELSE 0 END) voucher,
+    SUM(CASE WHEN first_payment_day BETWEEN 0 AND 7 THEN 1 ELSE 0 END) p7,
+    SUM(CASE WHEN first_payment_day BETWEEN 0 AND 14 THEN 1 ELSE 0 END) p14,
+    SUM(CASE WHEN first_payment_day BETWEEN 0 AND 30 THEN 1 ELSE 0 END) p30,
+    SUM(CASE WHEN first_payment_day BETWEEN 0 AND 30 THEN activated7 ELSE 0 END) a7,
+    SUM(CASE WHEN first_payment_day BETWEEN 0 AND 30 THEN activated14 ELSE 0 END) a14,
+    SUM(CASE WHEN first_payment_day BETWEEN 0 AND 30 THEN activated28 ELSE 0 END) a28,
+    SUM(CASE WHEN first_payment_day BETWEEN 0 AND 30 THEN retained ELSE 0 END) retained,
+    SUM(CASE WHEN (channel_mask & 1) != 0 THEN 1 ELSE 0 END) V,
+    SUM(CASE WHEN (channel_mask & 2) != 0 THEN 1 ELSE 0 END) M,
+    SUM(CASE WHEN (channel_mask & 4) != 0 THEN 1 ELSE 0 END) L
+    FROM customers WHERE {where}''',p).fetchone()
+    return {'snapshot_id':meta['id'],'base_date':meta['base_date'],'kpis':dict(r),'targets':list_summaries(c,filters)['targets']}
