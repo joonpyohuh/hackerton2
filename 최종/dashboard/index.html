@@ -237,10 +237,6 @@ footer { padding: 48px 0 64px; font-size: 11px; color: var(--muted); }
 .ai-panel label {display:block;font-size:11px;color:var(--ink-2);margin:7px 0}
 .ai-vh {position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 
-/* numbered steps — same rhythm as section numbers (.sh .no) */
-.ai-step {display:flex;align-items:baseline;gap:10px;margin:26px 0 10px;padding-top:14px;border-top:1px solid var(--hair)}
-.ai-step-split {justify-content:space-between}.ai-step-split > div {display:flex;align-items:baseline;gap:10px}
-.ai-no {font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;letter-spacing:.06em}
 .ai-panel h3 {font-size:13px;font-weight:700;letter-spacing:-0.02em;margin:0}
 .ai-meta {font-size:10px;color:var(--muted);margin:8px 0}
 .ai-summary {font-size:12px;line-height:1.6;color:var(--ink-2);min-height:19px}
@@ -287,11 +283,11 @@ footer { padding: 48px 0 64px; font-size: 11px; color: var(--muted); }
 .ai-history-item:hover {color:var(--accent)}
 .ai-history-item small {display:block;color:var(--muted);margin-top:4px}
 
-/* admin (collapsed) */
-.ai-admin {margin-top:28px;padding-top:14px;border-top:1px solid var(--hair)}
-.ai-admin summary {font-size:12px;color:var(--ink-2)}
-.ai-admin[open] > :not(summary) {animation:aiIn var(--ai-dur) var(--ai-ease) both}
-.ai-admin-note {font-size:11px;color:var(--muted);line-height:1.6;margin:10px 0 4px}
+/* optional strategy and evidence */
+.ai-advanced {margin-top:24px;padding-top:14px;border-top:1px solid var(--hair)}
+.ai-advanced summary {font-size:12px;font-weight:700;color:var(--ink);cursor:pointer}
+.ai-advanced[open] > :not(summary) {animation:aiIn var(--ai-dur) var(--ai-ease) both}
+.ai-advanced h3 {margin:18px 0 8px}
 .ai-safe {font-size:10px;color:var(--muted);line-height:1.6;margin-top:16px}
 
 /* motion: entry, loading */
@@ -421,43 +417,28 @@ footer { padding: 48px 0 64px; font-size: 11px; color: var(--muted); }
   <footer>BI Hackathon 2026 · 문제 1 · 데이터: user_dim, behavior_fact, payment_fact, watch_daily_fact, user_content_summary, content_dim, content_genre_bridge</footer>
 </main>
 
-<button id="aiDock" class="ai-dock" type="button" aria-expanded="false" aria-controls="aiPanel">✦ GPT 마케팅 AI</button>
-<aside id="aiPanel" class="ai-panel" aria-label="GPT 마케팅 전략 어시스턴트" aria-hidden="true">
-  <header><div><div class="eyebrow">AI MARKETING STRATEGIST</div><h2>GPT 전략 어시스턴트</h2><p class="ai-sub">타깃을 고르고 분석을 시작하면, 현재 필터의 SQL 집계를 GPT가 해석합니다.</p></div><button id="aiClose" class="ai-close" aria-label="패널 닫기" type="button">×</button></header>
+<button id="aiDock" class="ai-dock" type="button" aria-expanded="false" aria-controls="aiPanel">✦ 고객 여정 AI</button>
+<aside id="aiPanel" class="ai-panel" aria-label="고객 여정 AI" aria-hidden="true">
+  <header><div><h2>고객 여정 AI</h2><p class="ai-sub">현재 필터의 고객 데이터를 바탕으로 질문에 답합니다.</p></div><button id="aiClose" class="ai-close" aria-label="패널 닫기" type="button">×</button></header>
   <div id="aiStatus" class="ai-status" role="status">연결 확인 중…</div>
-  <div id="aiUpdated" class="ai-meta"></div>
-
-  <div class="ai-step"><span class="ai-no">01</span><h3>타깃 선택</h3></div>
-  <label for="aiTarget" class="ai-vh">마케팅 타깃</label>
+  <label for="aiTarget">질문 범위</label>
   <select id="aiTarget"><option value="all">전체 타깃 비교</option><option value="T1">T1 · 이용권 관심 후 미결제</option><option value="T2">T2 · 결제 후 첫 시청 실패</option><option value="T3">T3 · 초기 시청 후 유지 실패</option></select>
-  <div id="aiSummary" class="ai-summary"></div>
-
-  <div class="ai-step"><span class="ai-no">02</span><h3>전략 분석</h3></div>
-  <div class="ai-row">
-    <button id="aiGenerate" class="ai-action ai-primary" type="button">분석 시작</button>
-    <button id="aiSql" class="ai-link" type="button">실행 SQL 보기</button>
-  </div>
-  <div class="ai-result" id="aiResult" aria-live="polite"><p class="ai-empty">분석 결과가 여기에 표시됩니다. 결과는 자동 저장됩니다.</p></div>
-
-  <div class="ai-step"><span class="ai-no">03</span><h3>추가 질문</h3></div>
-  <div id="aiAnswer" class="ai-thread" aria-live="polite"></div>
-  <label for="aiQuestion" class="ai-vh">GPT에게 질문</label>
   <button id="aiSuggested" class="ai-link" type="button">추천 질문: 가장 타깃으로 할 만한 집단이 뭐야? ↗</button>
+  <label for="aiQuestion" class="ai-vh">고객 여정 질문</label>
   <textarea id="aiQuestion" rows="3" placeholder="예: 가장 타깃으로 할 만한 집단이 뭐야?"></textarea>
   <div class="ai-row ai-row-end"><small class="ai-hint">Enter 전송 · Shift+Enter 줄바꿈</small><button id="aiAsk" class="ai-action" type="button">질문 보내기</button></div>
+  <div id="aiAnswer" class="ai-thread" aria-live="polite"></div>
 
-  <div class="ai-step ai-step-split"><div><span class="ai-no">04</span><h3>저장된 전략</h3></div><button id="aiReload" class="ai-link" type="button">새로고침</button></div>
-  <div id="aiHistory" class="ai-history"><p class="ai-empty">불러오는 중…</p></div>
-
-  <details class="ai-admin" id="aiAdmin">
-    <summary>관리자 기능</summary>
-    <p class="ai-admin-note">고객 CSV 추출과 데이터 재적재에만 필요합니다. 분석·질문에는 필요 없습니다.</p>
-    <label for="aiToken">관리자 토큰 (이 브라우저 메모리에만 보관, 새로고침 시 소멸)</label>
-    <input id="aiToken" type="password" autocomplete="off" placeholder=".env 파일의 ADMIN_TOKEN" />
-    <p class="ai-admin-note">새 데이터로 build_data.py를 실행한 뒤, 서버의 data.js를 재적재하세요.</p>
-    <button id="aiRefreshData" class="ai-action secondary" type="button">서버 data.js 재적재</button>
+  <details class="ai-advanced" id="aiAdvanced">
+    <summary>캠페인 전략·분석 근거 보기</summary>
+    <div id="aiSummary" class="ai-summary"></div>
+    <h3>캠페인 전략</h3>
+    <div class="ai-row"><button id="aiGenerate" class="ai-action ai-primary" type="button">전략 만들기</button><button id="aiSql" class="ai-link" type="button">실행 SQL 보기</button></div>
+    <div class="ai-result" id="aiResult" aria-live="polite"><p class="ai-empty">타깃을 선택해 전략을 만들 수 있습니다.</p></div>
+    <div class="ai-row ai-row-end"><h3>저장된 전략</h3><button id="aiReload" class="ai-link" type="button">새로고침</button></div>
+    <div id="aiHistory" class="ai-history"><p class="ai-empty">불러오는 중…</p></div>
   </details>
-  <p class="ai-safe">익명화 이력 데이터 시연용. 추천은 마케팅 담당자 승인용이며 자동 발송하지 않습니다. 키·고객 목록을 GPT로 보내지 않습니다. OpenAI 키가 없으면 임의의 AI 결과를 만들지 않습니다.</p>
+  <p class="ai-safe">과거 고객 데이터 기준의 분석입니다. 캠페인 효과는 별도로 검증해야 합니다.</p>
 </aside>
 <script src="data.js"></script>
 <script src="app.js"></script>

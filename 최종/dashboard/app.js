@@ -350,12 +350,10 @@ function topProducts(ids, k = 3) {
   return [...cnt.entries()].sort((a, b) => b[1] - a[1]).slice(0, k).map(([p, c]) => [p, pct(c, n)]);
 }
 
-let lastTargets = [];
 function renderTargets(m, ids) {
-  lastTargets = m.targets;
   const prodTop = topProducts(ids);
   const order = [...m.targets].sort((a, b) => b.push - a.push);
-  $("targets").innerHTML = m.targets.map((t, idx) => {
+  $("targets").innerHTML = m.targets.map((t) => {
     const g = topGenres(t.list);
     const titles = g.top.length ? (D.reco[g.top[0][0]] || []).slice(0, 3) : D.reco._all.slice(0, 3);
     const rank = order.indexOf(t) + 1;
@@ -371,8 +369,6 @@ function renderTargets(m, ids) {
           <div><span>푸시 도달 가능</span><b class="num acc">${fmt(t.push)}</b></div>
         </div>
         <div class="actions">
-          <button class="btn solid" data-dl="${idx}" data-push="1">푸시 도달 고객 CSV</button>
-          <button class="btn" data-dl="${idx}" data-push="0">전체 대상 CSV</button>
           <button class="btn" data-ai-target="${t.id}" type="button">✦ GPT 전략</button>
         </div>
         <details><summary>추출 SQL</summary><pre>${t.sql.replace(/</g, "&lt;")}</pre></details>
@@ -387,13 +383,6 @@ function renderTargets(m, ids) {
       </div>
     </div>`;
   }).join("");
-}
-
-function download(idx, pushOnly) {
-  // Always use the backend SQL cohort, including the current global filters.
-  if (window.OTT_AI) return window.OTT_AI.exportTarget(lastTargets[idx].id, pushOnly);
-  alert("SQL 고객 추출 API를 시작해야 합니다. README.md를 확인하세요.");
-  return;
 }
 
 // ── 메인 ─────────────────────────────────────
@@ -446,7 +435,6 @@ function init() {
     state.dim = d; renderDims(); renderSeg(select());
   });
   $("targets").addEventListener("click", (e) => {
-    const b = e.target.closest("[data-dl]"); if (b) download(+b.dataset.dl, b.dataset.push === "1");
     const a = e.target.closest("[data-ai-target]"); if (a && window.OTT_AI) window.OTT_AI.open(a.dataset.aiTarget);
   });
   render();

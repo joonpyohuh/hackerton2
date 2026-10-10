@@ -1,14 +1,12 @@
-/* OTT Pulse AI assistant: server-origin API, no OpenAI key in browser code.
-   Analysis (strategy/chat/history) needs no token; the admin token is only for CSV export and data reload. */
+/* OTT Pulse AI assistant: server-origin API, no OpenAI key in browser code. */
 (() => {
   'use strict';
   const $ = id => document.getElementById(id);
   const els = {
     dock:$('aiDock'), panel:$('aiPanel'), close:$('aiClose'), status:$('aiStatus'),
-    target:$('aiTarget'), key:$('aiToken'), summary:$('aiSummary'), result:$('aiResult'),
+    target:$('aiTarget'), advanced:$('aiAdvanced'), summary:$('aiSummary'), result:$('aiResult'),
     answer:$('aiAnswer'), input:$('aiQuestion'), suggested:$('aiSuggested'), generate:$('aiGenerate'), ask:$('aiAsk'),
-    history:$('aiHistory'), reload:$('aiReload'), sql:$('aiSql'), updated:$('aiUpdated'),
-    events:$('aiEvents'), refreshData:$('aiRefreshData'), admin:$('aiAdmin'),
+    history:$('aiHistory'), reload:$('aiReload'), sql:$('aiSql'), events:$('aiEvents'),
   };
   const CHAT=[];
   let lastSnapshot=null;
@@ -28,16 +26,14 @@
     push:document.getElementById('push').value
   });
   const qs=()=>new URLSearchParams(config()).toString();
-  const key=()=>els.key.value.trim();
   async function request(path, options={}){
     const headers={...options.headers};
-    if(key()) headers['X-Admin-Token']=key();
     if(options.body && typeof options.body!=='string'){
       headers['Content-Type']='application/json'; options.body=JSON.stringify(options.body);
     }
     let resp;
     try{resp=await fetch('/api'+path,{...options,headers,cache:'no-store'});}
-    catch(e){throw Error('백엔드에 연결할 수 없습니다. python -m uvicorn backend.main:app 명령으로 서버를 실행하세요.');}
+    catch(e){throw Error('서비스에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.');}
     if(!resp.ok){
       let info={};try{info=await resp.json();}catch{}
       const err=Error(typeof info.detail==='string' ? info.detail : `HTTP ${resp.status}`);
@@ -66,8 +62,7 @@
 
   function updateResults(h){
     const c=h.kpis;
-    els.summary.textContent=`SQL 기준: 가입 ${pretty(c.n)}명 · D+30 결제 ${pretty(c.p30)}명 · 지속 시청 ${pretty(c.retained)}명`;
-    els.updated.textContent=`활성 데이터 스냅샷: ${h.snapshot_id}`;
+    els.summary.textContent=`현재 데이터: 가입 ${pretty(c.n)}명 · D+30 결제 ${pretty(c.p30)}명 · 지속 시청 ${pretty(c.retained)}명`;
     els.events.innerHTML=h.targets.map(t=>{
       const change=t.change ? ` · 이전 대비 ${t.change.delta_count>=0?'+':''}${pretty(t.change.delta_count)}명` : ' · 최초 스냅샷';
       return `<button class="ai-target-chip" data-choose="${t.id}"><strong>${t.id}</strong> ${esc(t.name)} <b>${pretty(t.count)}</b>명 · 푸시 <b>${pretty(t.push_reachable)}</b>명${esc(change)}</button>`;
@@ -79,21 +74,22 @@
       const [health,overview]=await Promise.all([json('/health'),json('/overview?'+qs())]);
       lastSnapshot=health.snapshot_id;
       if(!busy && seq===statusSeq) status(health.ai_configured
-        ? `서버 연결 · ${pretty(health.customers)}명 · GPT 준비됨 — 전체 타깃에 관해 바로 질문하세요.`
-        : `서버 연결 · ${pretty(health.customers)}명 · GPT 키 미설정 (서버 .env의 OPENAI_API_KEY 필요)`, health.ai_configured?'':'notice');
+        ? `고객 ${pretty(health.customers)}명 데이터 준비됨`
+        : 'AI 연결을 확인할 수 없습니다.', health.ai_configured?'':'notice');
       updateResults(overview);
     }catch(e){if(seq===statusSeq) status(e.message,'error');}
   }
   function open(t){
     const changed=!busy && t && t!==els.target.value;  // never swap target under an in-flight request
     if(changed){els.target.value=t;clearTarget();}
+    if(t && t!=='all') els.advanced.open=true;
     const wasVisible=visible;
     if(!visible){
       returnFocus=document.activeElement;
       visible=true;els.panel.classList.add('open');els.dock.setAttribute('aria-expanded','true');
       els.panel.setAttribute('aria-hidden','false');
       // focus after the slide starts so the browser does not jump-scroll
-      requestAnimationFrame(()=>els.target.focus({preventScroll:true}));
+      requestAnimationFrame(()=>els.input.focus({preventScroll:true}));
     }
     if(changed||!wasVisible){refreshStatus();loadHistory();}
   }
@@ -115,7 +111,7 @@
     const label=els.generate.textContent;
     setBusy(true);els.generate.textContent='분석 중…';
     els.result.innerHTML=skeleton;
-    status('현재 필터 기준 SQL 집계를 GPT가 해석하고 있습니다. 보통 수십 초 걸립니다.','busy');
+    status('선택한 고객 데이터를 분석하고 있습니다.','busy');
     try{
       const x=await json('/ai/strategy',{method:'POST',body:{target_id:els.target.value,filters:config()}});
       renderStrategy(x);
@@ -139,12 +135,13 @@
     const mine=bubble('user',msg);els.input.value='';
     const typing=document.createElement('div');typing.className='ai-typing ai-in';typing.setAttribute('aria-label','GPT 응답 작성 중');typing.innerHTML='<i></i><i></i><i></i>';
     els.answer.appendChild(typing);
-    status('GPT가 현재 필터의 SQL 집계를 근거로 답하고 있습니다.','busy');
+    status('고객 데이터를 바탕으로 답변하고 있습니다.','busy');
     try{
       const result=await json('/ai/chat',{method:'POST',body:{target_id:els.target.value,filters:config(),message:msg,history:CHAT.slice(-8)}});
       CHAT.push({role:'user',text:msg},{role:'assistant',text:result.reply});
       typing.remove();bubble('assistant',result.reply);
-      status('SQL 집계 데이터 근거 응답 · 캠페인 발송 기능 없음');
+      status('답변 완료');
+      els.answer.scrollIntoView({block:'nearest'});
     }catch(e){
       // drop the unanswered bubble and restore the question so it can be resent
       typing.remove();mine.remove();bubble(errKind(e),e.message);
@@ -174,39 +171,10 @@
       status('현재 화면의 필터와 동일한 SQL 조건');
     }catch(e){status(e.message,'error');}
   }
-  function needAdmin(t,msg){
-    open(t);els.admin.open=true;status(msg,'notice');
-    requestAnimationFrame(()=>{els.key.focus({preventScroll:true});els.admin.scrollIntoView({block:'nearest',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});});
-  }
-  async function exportTarget(t,push){
-    if(!key()){needAdmin(t,'고객 CSV 추출은 관리자 기능입니다. 아래 관리자 기능에서 ADMIN_TOKEN을 입력하세요.');return;}
-    try{
-      const resp=await request('/targets/'+t+'/export?'+qs()+'&push_only='+(push?'true':'false'));
-      const blob=await resp.blob();
-      const url=URL.createObjectURL(blob);
-      const link=document.createElement('a');link.href=url;link.download=t+'_'+(push?'push':'all')+'.csv';link.click();
-      setTimeout(()=>URL.revokeObjectURL(url),1200);
-      status('서버 SQL 기반 CSV 추출 완료');
-    }catch(e){
-      if(e.status===401) needAdmin(t,'관리자 토큰이 올바르지 않습니다. 다시 확인해 주세요.');
-      else{open(t);status(e.message,'error');}
-    }
-  }
-  async function reload(){
-    if(!key()){needAdmin(null,'데이터 재적재는 관리자 기능입니다. ADMIN_TOKEN을 입력하세요.');return;}
-    els.refreshData.disabled=true;
-    try{
-      const res=await json('/snapshots/refresh',{method:'POST'});
-      status(res.changed?'새 스냅샷을 저장했습니다. 페이지를 새로고침하면 업데이트된 data.js가 반영됩니다.':'입력 데이터가 동일해 기존 스냅샷을 유지합니다.');
-      await refreshStatus();
-      if(res.changed){els.result.innerHTML='<p class="ai-notice ai-in">데이터 파일 변경이 감지되었습니다. 새 data.js를 브라우저에도 반영하려면 새로고침하세요.</p>';}
-    }catch(e){status(e.message,'error');}
-    finally{els.refreshData.disabled=false;}
-  }
   function clearTarget(){
     CHAT.length=0;els.answer.innerHTML='';
-    els.result.innerHTML='<p class="ai-empty">분석 결과가 여기에 표시됩니다. 결과는 자동 저장됩니다.</p>';
-    els.generate.textContent='분석 시작';
+    els.result.innerHTML='<p class="ai-empty">타깃을 선택해 전략을 만들 수 있습니다.</p>';
+    els.generate.textContent='전략 만들기';
   }
   function resetTarget(){clearTarget();loadHistory();refreshStatus();}
   els.dock.addEventListener('click',()=>visible?close():open());
@@ -221,7 +189,6 @@
     if(r){renderStrategy({strategy:r.result,id:r.id,created_at:r.created_at});status(`저장된 전략 #${r.id}을 표시합니다.`);}
   });
   els.reload.addEventListener('click',loadHistory);els.sql.addEventListener('click',showSql);
-  els.refreshData.addEventListener('click',reload);
   els.target.addEventListener('change',resetTarget);
   els.events.addEventListener('click',e=>{const b=e.target.closest('[data-choose]');if(b)open(b.dataset.choose);});
   document.addEventListener('ott:render',()=>{if(visible)refreshStatus();});
@@ -230,6 +197,6 @@
     try{const h=await json('/health');if(lastSnapshot&&h.snapshot_id!==lastSnapshot){status('새 데이터 스냅샷 감지됨. 갱신 내용을 확인하세요.','notice');await refreshStatus();}}
     catch{}finally{refreshBusy=false;}
   },60000);
-  window.OTT_AI={open,exportTarget,refreshStatus};
+  window.OTT_AI={open,refreshStatus};
   refreshStatus();
 })();
