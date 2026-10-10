@@ -56,6 +56,23 @@ export function TurnView({ turn, index }: { turn: Turn; index: number }) {
         <StageTrack turn={turn} />
       </Row>
 
+      {turn.context && (
+        <Row label="검색 Context">
+          <p className="text-[13.5px] text-sub">
+            {turn.context.matches.length
+              ? turn.context.matches.map((m) => `${m.name} (검색 점수 ${m.score})`).join(" · ")
+              : "일치하는 업무 정의 없음 · 기본 스키마 사용"}
+            {turn.context.exampleMatches.length > 0 && ` · 승인 사례 ${turn.context.exampleMatches.length}건`}
+          </p>
+          <details className="mt-2 text-[13px] text-sub">
+            <summary className="cursor-pointer">Agent에 전달한 정의·스키마 보기</summary>
+            <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap rounded border border-line bg-surface p-3 text-[12px]">
+              {`정의\n${turn.context.semantic || "(없음)"}\n\n스키마\n${turn.context.schema}\n\n승인 사례\n${turn.context.examples || "(없음)"}`}
+            </pre>
+          </details>
+        </Row>
+      )}
+
       {r?.status === "passed" && (
         <>
           <Row label="답변">

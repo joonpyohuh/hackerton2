@@ -17,6 +17,7 @@ export type Turn = {
   stage: RunningStage | null; // null = 대기 또는 종료
   attemptNo: number; // 0부터
   attempts: Attempt[];
+  context: Extract<AgentEvent, { type: "context" }> | null;
   response: AgentResponse | null;
   error: string | null;
 };
@@ -30,6 +31,8 @@ function reduceTurn(turn: Turn, event: AgentEvent): Turn {
       return { ...turn, stage: event.stage, attemptNo: event.attempt };
     case "attempt":
       return { ...turn, attempts: [...turn.attempts, event.attempt] };
+    case "context":
+      return { ...turn, context: event };
     case "final":
       return { ...turn, stage: null, response: event.response, attempts: event.response.attempts };
     case "error":
@@ -45,7 +48,7 @@ export function useAgentStream() {
   const ask = useCallback(async (question: string) => {
     const id = crypto.randomUUID();
     const update = (fn: (t: Turn) => Turn) => setTurns((ts) => ts.map((t) => (t.id === id ? fn(t) : t)));
-    setTurns((ts) => [...ts, { id, question, stage: null, attemptNo: 0, attempts: [], response: null, error: null }]);
+    setTurns((ts) => [...ts, { id, question, stage: null, attemptNo: 0, attempts: [], context: null, response: null, error: null }]);
     setRunning(true);
 
     const controller = new AbortController();

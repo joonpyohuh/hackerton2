@@ -13,7 +13,7 @@ SQL을 직접 고쳐 쓰지 말고, 문제와 수정 방향만 제시합니다.
 7. 근거 없는 가정
 
 ## 판정 규칙
-- 지표 정의가 없거나 서로 충돌하면 임의로 정의하지 말고 missingDefinitions에 적고 needsClarification을 true로 둡니다.
+- 지표 정의가 없거나 서로 충돌하거나 상태가 needs_data이면 임의로 정의하지 말고 missingDefinitions에 적고 needsClarification을 true로 둡니다.
 - 확신이 없으면 passed를 false로 두고 이유를 errors에 적습니다.
 - errors가 하나라도 있으면 passed는 false입니다.
 - score는 0~100의 휴리스틱 점수입니다. 정답 여부를 보장하지 않습니다.

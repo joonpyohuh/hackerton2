@@ -162,6 +162,10 @@ export async function* runAgentPipeline(
       finalStatus: response.status,
       knowledgeStatus: response.status === "passed" ? "MODEL_VERIFIED" : response.status === "failed" ? "REJECTED" : null,
       contextSources: context?.sources ?? [],
+      retrievedContext: context ? {
+        schema: context.schemaContext, semantic: context.semanticContext, examples: context.examples,
+        matches: context.matches, exampleMatches: context.exampleMatches,
+      } : undefined,
       definitionVersion: context?.definitionVersion ?? null,
       initialSql: attempts.find((a) => a.sql)?.sql ?? null,
       finalSql: response.status === "passed" ? response.sql : null,
@@ -192,6 +196,10 @@ export async function* runAgentPipeline(
       return;
     }
     const ctx = context;
+    yield {
+      type: "context", sources: ctx.sources, schema: ctx.schemaContext, semantic: ctx.semanticContext,
+      examples: ctx.examples, matches: ctx.matches ?? [], exampleMatches: ctx.exampleMatches ?? [],
+    };
     if (ctx.isAmbiguous) {
       yield await finalize(
         {

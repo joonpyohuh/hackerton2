@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Geist_Mono } from "next/font/google";
 import localFont from "next/font/local";
 import "./globals.css";
@@ -28,7 +29,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <strong className="mr-3 tracking-widest text-white">OTT PULSE</strong>
           <a className="rounded px-3 py-1.5 hover:bg-neutral-800 hover:text-white" href="https://hackathon-journey-dashboard.vercel.app/">대시보드</a>
           <a className="rounded px-3 py-1.5 hover:bg-neutral-800 hover:text-white" href="https://hackathon-journey-dashboard.vercel.app/insights">지표 연관 지도</a>
-          <a aria-current="page" className="rounded bg-neutral-800 px-3 py-1.5 text-white" href="/">NL2SQL 분석</a>
+          <Link className="rounded px-3 py-1.5 hover:bg-neutral-800 hover:text-white" href="/">NL2SQL 분석</Link>
+          <Link className="rounded px-3 py-1.5 hover:bg-neutral-800 hover:text-white" href="/semantic">정의·검색 관리</Link>
         </nav>
         {children}
       </body>

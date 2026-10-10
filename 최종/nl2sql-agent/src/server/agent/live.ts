@@ -10,7 +10,7 @@ import { createOpenAIChat } from "@/server/llm/chat";
 import { DATA_NOTES, DATA_NOTES_VERSION } from "@/server/semantic/dataNotes";
 import { createTemplateFormatter } from "./formatter";
 import { createSqlGenerator } from "./generator";
-import { ConsoleRunLogger } from "./logger";
+import { getSemanticStore } from "@/server/semantic/store";
 import { createBasicRetriever } from "./retriever";
 import type { PipelineConfig, PipelineDeps } from "./types";
 
@@ -43,8 +43,8 @@ let metadataCache: { key: string; cache: ReturnType<typeof createMetadataCache> 
 /** 실제 구현체 조립. 필수 설정이 하나라도 빠지면 실행하지 않는다 (검증 단계를 건너뛰는 경로 없음). */
 export function buildLiveAgent(env: Env): LiveAgent {
   const r = readiness(env);
-  const missing = [...new Set([...r.generation, ...r.semanticVerification, ...r.execution])];
-  if (missing.length || !env.OPENAI_API_KEY || !env.VERIFIER_MODEL || !env.DATABASE_URL_READONLY) {
+  const missing = [...new Set([...r.generation, ...r.semanticVerification, ...r.execution, ...r.logging])];
+  if (missing.length || !env.OPENAI_API_KEY || !env.VERIFIER_MODEL || !env.DATABASE_URL_READONLY || !env.DATABASE_URL_APP) {
     return { ok: false, missing: missing.map((k) => `환경변수 ${k}`) };
   }
 
@@ -52,10 +52,11 @@ export function buildLiveAgent(env: Env): LiveAgent {
   const key = `${env.DATABASE_URL_READONLY}|${env.ALLOWED_SCHEMAS.join(",")}`;
   if (metadataCache?.key !== key) metadataCache = { key, cache: createMetadataCache(pool, env.ALLOWED_SCHEMAS) };
   const metadata = metadataCache.cache;
+  const store = getSemanticStore(env.DATABASE_URL_APP);
   const chat = createOpenAIChat(env.OPENAI_API_KEY);
 
   const deps: PipelineDeps = {
-    retriever: createBasicRetriever({ getMetadata: () => metadata.get(), notesVersion: DATA_NOTES_VERSION }),
+    retriever: createBasicRetriever({ getMetadata: () => metadata.get(), notesVersion: DATA_NOTES_VERSION, store }),
     generator: createSqlGenerator({ chat, model: env.GENERATOR_MODEL, dataNotes: DATA_NOTES }),
     structural: {
       // 카탈로그는 DB 메타데이터에서 만든다 (하드코딩 없음)
@@ -67,7 +68,7 @@ export function buildLiveAgent(env: Env): LiveAgent {
     verifier: createSemanticVerifier({ chat, model: env.VERIFIER_MODEL, dataNotes: DATA_NOTES }),
     executor: createQueryExecutor({ pool, maxRows: env.MAX_RESULT_ROWS, statementTimeoutMs: env.STATEMENT_TIMEOUT_MS }),
     formatter: createTemplateFormatter(),
-    logger: new ConsoleRunLogger(), // TODO(09단계): DB 로거
+    logger: { save: (log) => store.saveRun(log) },
   };
   return { ok: true, deps, config: pipelineConfigFromEnv(env) };
 }

@@ -105,6 +105,15 @@ export type FinalStatus = AgentResponse["status"];
 
 export const agentEventSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("stage"), stage: runningStageSchema, attempt: z.number().int().min(0) }),
+  z.object({
+    type: z.literal("context"),
+    sources: z.array(z.string()),
+    schema: z.string(),
+    semantic: z.string(),
+    examples: z.string(),
+    matches: z.array(z.object({ id: z.string(), name: z.string(), kind: z.enum(["metric", "dimension", "term"]), score: z.number(), version: z.number() })),
+    exampleMatches: z.array(z.object({ requestId: z.string(), question: z.string(), score: z.number() })),
+  }),
   z.object({ type: z.literal("attempt"), attempt: attemptSchema }),
   z.object({ type: z.literal("final"), response: agentResponseSchema }),
   z.object({ type: z.literal("error"), message: z.string() }),

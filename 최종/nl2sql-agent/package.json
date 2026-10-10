@@ -10,7 +10,8 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
     "db:local": "tsx scripts/db-local.ts",
-    "db:setup": "tsx scripts/db-setup.ts"
+    "db:setup": "tsx scripts/db-setup.ts",
+    "semantic:setup": "tsx scripts/semantic-setup.ts"
   },
   "dependencies": {
     "libpg-query": "^18.1.5",

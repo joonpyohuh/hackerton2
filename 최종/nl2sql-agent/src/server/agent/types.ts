@@ -13,16 +13,18 @@ export type LlmUsage = {
   outputTokens: number;
 };
 
-// ── 06~07단계: Semantic Layer + RAG ──
+// ── Semantic Layer + 질문별 검색 ──
 export type RetrievedContext = {
   schemaContext: string;
   semanticContext: string;
-  examples: string; // GOLD_VERIFIED / HUMAN_APPROVED 사례만
+  examples: string; // 담당자 승인 사례만
   isAmbiguous: boolean;
   clarificationQuestion: string | null;
   missingDefinitions: string[];
   definitionVersion: string | null;
   sources: string[];
+  matches?: { id: string; name: string; kind: "metric" | "dimension" | "term"; score: number; version: number }[];
+  exampleMatches?: { requestId: string; question: string; score: number }[];
 };
 export interface ContextRetriever {
   retrieve(question: string, signal: AbortSignal): Promise<RetrievedContext>;
@@ -98,7 +100,7 @@ export interface ResultFormatter {
   ): Promise<FormattedResult>;
 }
 
-// ── 로그 (09단계에서 DB 저장 구현) ──
+// ── 실행 로그 ──
 /** 런타임 파이프라인이 부여할 수 있는 상태는 둘뿐이다. GOLD/HUMAN은 벤치마크·승인 절차에서만 부여한다. */
 export type RuntimeKnowledgeStatus = "REJECTED" | "MODEL_VERIFIED";
 
@@ -110,6 +112,7 @@ export type RunLog = {
   finalStatus: FinalStatus;
   knowledgeStatus: RuntimeKnowledgeStatus | null; // 확인 질문은 null
   contextSources: string[];
+  retrievedContext?: { schema: string; semantic: string; examples: string; matches: RetrievedContext["matches"]; exampleMatches: RetrievedContext["exampleMatches"] };
   definitionVersion: string | null;
   initialSql: string | null;
   finalSql: string | null;

@@ -1,15 +1,47 @@
 import type { ContextRetriever } from "./types";
 import { renderSchemaContext, type DbMetadata } from "@/server/db/metadata";
+import { matchDefinitions, scoreText } from "@/server/semantic/search";
+import { renderDefinition } from "@/server/semantic/definitions";
+import type { SemanticStore } from "@/server/semantic/store";
 
-/**
- * 기본 맥락 검색기: DB 메타데이터(구조) + 데이터 특성 노트.
- * TODO(06단계): 승인된 지표 정의를 semanticContext로 주입
- * TODO(07단계): pgvector로 질문 유사 사례(GOLD_VERIFIED / HUMAN_APPROVED만) 검색 → examples
- */
-export function createBasicRetriever(options: { getMetadata: () => Promise<DbMetadata>; notesVersion: string }): ContextRetriever {
+/** DB 구조, 질문과 관련된 업무 정의, 담당자 승인 SQL을 함께 검색한다. */
+export function createBasicRetriever(options: { getMetadata: () => Promise<DbMetadata>; notesVersion: string; store?: SemanticStore }): ContextRetriever {
   return {
-    async retrieve() {
+    async retrieve(question) {
       const meta = await options.getMetadata();
+      if (options.store) {
+        const [definitions, revision] = await Promise.all([options.store.list(), options.store.revision()]);
+        const matches = matchDefinitions(question, definitions);
+        const selected = matches.map((m) => definitions.find((d) => d.id === m.id)!);
+        const tableNames = new Set(selected.flatMap((d) => d.tables));
+        for (const table of meta.tables) {
+          if (question.toLowerCase().includes(table.name)) tableNames.add(`${table.schema}.${table.name}`);
+        }
+        const tables = tableNames.size ? meta.tables.filter((t) => tableNames.has(`${t.schema}.${t.name}`)) : meta.tables;
+        const selectedIds = new Set(matches.map((m) => m.id));
+        const examples = (await options.store.approvedExamples(revision))
+          .map((example) => ({
+            ...example,
+            score: scoreText(question, example.question) +
+              example.definitionIds.filter((id) => selectedIds.has(id)).length * 100,
+          }))
+          .filter((example) => example.score >= 8)
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 3);
+        const unavailable = selected.filter((d) => d.status === "needs_data");
+        return {
+          schemaContext: renderSchemaContext(tables),
+          semanticContext: selected.map(renderDefinition).join("\n\n"),
+          examples: examples.map((e) => `질문: ${e.question}\n승인 SQL: ${e.sql}`).join("\n\n"),
+          isAmbiguous: unavailable.length > 0,
+          clarificationQuestion: unavailable.length ? unavailable.map((d) => `${d.name}: ${d.missing}`).join(" ") : null,
+          missingDefinitions: unavailable.map((d) => d.name),
+          definitionVersion: `semantic.v${revision}`,
+          sources: tables.map((t) => `${t.schema}.${t.name}`),
+          matches,
+          exampleMatches: examples.map(({ requestId, question: q, score }) => ({ requestId, question: q, score })),
+        };
+      }
       return {
         schemaContext: renderSchemaContext(meta.tables),
         semanticContext: "",
