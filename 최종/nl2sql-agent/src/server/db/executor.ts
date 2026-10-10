@@ -28,9 +28,9 @@ export function createReaderPool(connectionString: string): Pool {
   const local = /@(127\.0\.0\.1|localhost)[:/]/.test(connectionString);
   return new Pool({
     connectionString,
-    max: 4,
+    max: 1,
     connectionTimeoutMillis: 5_000,
-    idleTimeoutMillis: 30_000,
+    idleTimeoutMillis: 1_000,
     application_name: "nl2sql-agent-reader",
     ssl: local ? false : { rejectUnauthorized: false },
     types: typeParsers,

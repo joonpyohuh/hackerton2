@@ -46,6 +46,11 @@ function readerUrl(admin: string, password: string): string {
   const suffix = decodeURIComponent(u.username).split(".").slice(1).join(".");
   u.username = suffix ? `nl2sql_reader.${suffix}` : "nl2sql_reader";
   u.password = password;
+  if (u.hostname.endsWith(".neon.tech") && !u.hostname.split(".")[0].endsWith("-pooler")) {
+    const parts = u.hostname.split(".");
+    parts[0] += "-pooler";
+    u.hostname = parts.join(".");
+  }
   return u.toString();
 }
 

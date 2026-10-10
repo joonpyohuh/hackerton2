@@ -35,10 +35,11 @@ try {
   await admin.query(readFileSync("db/migrations/003_semantic.sql", "utf8"));
   await admin.query(`DO $$ BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'nl2sql_app') THEN
-      CREATE ROLE nl2sql_app LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS CONNECTION LIMIT 10;
+      CREATE ROLE nl2sql_app LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS CONNECTION LIMIT 50;
     END IF;
   END $$`);
   await admin.query(`ALTER ROLE nl2sql_app WITH PASSWORD '${password}'`);
+  await admin.query("ALTER ROLE nl2sql_app CONNECTION LIMIT 50");
   await admin.query("GRANT USAGE ON SCHEMA semantic TO nl2sql_app");
   await admin.query("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA semantic TO nl2sql_app");
   let inserted = 0;
