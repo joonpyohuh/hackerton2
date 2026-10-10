@@ -87,7 +87,7 @@ export class SemanticStore {
 
   async approvedExamples(revision: number): Promise<{ requestId: string; question: string; sql: string; definitionIds: string[] }[]> {
     // ponytail: 전역 revision 변경 시 기존 승인 사례를 모두 제외한다. 정의별 의존성 추적이 필요해질 때만 세분화한다.
-    const r = await this.pool.query<{ request_id: string; question: string; sql: string; matches: { id: string }[] | null }>(
+    const r = await this.pool.query<{ request_id: string; question: string; sql: string; matches: { id: string; score: number }[] | null }>(
       `SELECT request_id, log->>'question' AS question, log->>'finalSql' AS sql,
          log->'retrievedContext'->'matches' AS matches
        FROM semantic.agent_runs WHERE approved=true AND approved_revision=$1
@@ -96,7 +96,7 @@ export class SemanticStore {
     );
     return r.rows.map((row) => ({
       requestId: row.request_id, question: row.question, sql: row.sql,
-      definitionIds: (row.matches ?? []).map((match) => match.id),
+      definitionIds: (row.matches ?? []).filter((match) => match.score >= 8).map((match) => match.id),
     }));
   }
 }

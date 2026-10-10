@@ -25,7 +25,8 @@ export async function GET(req: Request) {
     if (!agent.ok) return error("검색 서비스를 사용할 수 없습니다.", 503);
     const context = await agent.deps.retriever.retrieve(question, req.signal);
     return NextResponse.json({ question, ...context });
-  } catch {
+  } catch (e) {
+    console.error("[semantic] 정의 검색 실패", e);
     return error("정의 검색에 실패했습니다.", 500);
   }
 }
